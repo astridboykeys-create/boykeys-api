@@ -10,7 +10,8 @@ export default async function handler(req, res) {
 
   try {
 
-    const response = await fetch(
+    // Ticket zoeken
+    const ticketResponse = await fetch(
       "https://api.hubapi.com/crm/v3/objects/tickets/search",
       {
         method: "POST",
@@ -32,7 +33,6 @@ export default async function handler(req, res) {
             }
           ],
           properties: [
-            "request_id",
             "beschikbare_fotografen"
           ],
           limit: 1
@@ -40,25 +40,60 @@ export default async function handler(req, res) {
       }
     );
 
-    const data = await response.json();
+    const ticketData =
+      await ticketResponse.json();
 
     if (
-      !data.results ||
-      data.results.length === 0
+      !ticketData.results ||
+      ticketData.results.length === 0
     ) {
       return res.status(404).json({
         error: "Ticket niet gevonden"
       });
     }
 
-    const ticket = data.results[0];
+    const ticket =
+      ticketData.results[0];
+
+    const ids =
+      (ticket.properties.beschikbare_fotografen || "")
+        .split(";")
+        .map(id => id.trim())
+        .filter(Boolean);
+
+    const photographers = [];
+
+    // Fotografen ophalen
+    for (const id of ids) {
+
+      const contactResponse =
+        await fetch(
+          `https://api.hubapi.com/crm/v3/objects/contacts/${id}?properties=firstname,lastname,regio`,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${process.env.HUBSPOT_TOKEN}`
+            }
+          }
+        );
+
+      const contact =
+        await contactResponse.json();
+
+      photographers.push({
+        id,
+        firstname:
+          contact.properties?.firstname || "",
+        lastname:
+          contact.properties?.lastname || "",
+        regio:
+          contact.properties?.regio || ""
+      });
+
+    }
 
     return res.status(200).json({
-      ticketId: ticket.id,
-      request_id:
-        ticket.properties.request_id,
-      beschikbare_fotografen:
-        ticket.properties.beschikbare_fotografen
+      photographers
     });
 
   } catch (error) {
