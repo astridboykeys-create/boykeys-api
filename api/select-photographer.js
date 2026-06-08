@@ -102,10 +102,8 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           properties: {
-            geselecteerde_fotograaf:
-              photographer_id,
-            fotograaf_geselecteerd_op:
-              new Date().toISOString()
+            gekozen_fotograaf:
+              photographer_id
           }
         })
       }
@@ -114,10 +112,37 @@ export default async function handler(req, res) {
     const updateData =
       await updateResponse.json();
 
+    // Contact ophalen
+    const contactResponse = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/contacts/${photographer_id}?properties=calendly_link,firstname,lastname`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${process.env.HUBSPOT_TOKEN}`
+        }
+      }
+    );
+
+    const contactData =
+      await contactResponse.json();
+
+    console.log("CONTACT DATA");
+    console.log(
+      JSON.stringify(
+        contactData,
+        null,
+        2
+      )
+    );
+
+    const calendlyLink =
+      contactData?.properties?.calendly_link || "";
+
     return res.status(200).json({
       success: true,
       ticketId,
       photographer_id,
+      calendlyLink,
       updateData
     });
 
