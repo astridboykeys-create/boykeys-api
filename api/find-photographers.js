@@ -24,9 +24,11 @@ export default async function handler(req, res) {
     const ticketData =
       await ticketResponse.json();
 
+ 
+
     // Fotografen ophalen
     const contactsResponse = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,latitude,longitude,max_reistijd_minuten",
+      "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,diensten,is_fotograaf,latitude,longitude,max_reistijd_minuten",
       {
         headers: {
           Authorization:
@@ -47,19 +49,33 @@ export default async function handler(req, res) {
           ticketData.properties?.longitude
       },
 
+
+
+
+
+
+      
+
       fotografen:
         contactsData.results.map(c => ({
-          id: c.id,
-          firstname:
-            c.properties.firstname,
-          lastname:
-            c.properties.lastname,
-          latitude:
-            c.properties.latitude,
-          longitude:
-            c.properties.longitude,
-          max_reistijd_minuten:
-            c.properties.max_reistijd_minuten
+  id: c.id,
+  firstname: c.properties.firstname,
+  lastname: c.properties.lastname,
+
+  is_fotograaf:
+    c.properties.is_fotograaf,
+
+  diensten:
+    c.properties.diensten,
+
+  latitude:
+    c.properties.latitude,
+
+  longitude:
+    c.properties.longitude,
+
+  max_reistijd_minuten:
+    c.properties.max_reistijd_minuten
         }))
 
     });
