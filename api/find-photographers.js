@@ -1,6 +1,4 @@
-export default async function handler(req, res) {
-
-  function distanceKm(
+function distanceKm(
   lat1,
   lon1,
   lat2,
@@ -19,15 +17,11 @@ export default async function handler(req, res) {
 
   const a =
     Math.sin(dLat / 2) *
-    Math.sin(dLat / 2) +
-    Math.cos(
-      lat1 * Math.PI / 180
-    ) *
-    Math.cos(
-      lat2 * Math.PI / 180
-    ) *
+      Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon / 2) *
-    Math.sin(dLon / 2);
+      Math.sin(dLon / 2);
 
   const c =
     2 *
@@ -39,6 +33,8 @@ export default async function handler(req, res) {
   return R * c;
 
 }
+
+export default async function handler(req, res) {
 
   try {
 
@@ -65,16 +61,15 @@ export default async function handler(req, res) {
       await ticketResponse.json();
 
     const woningLat =
-  parseFloat(
-    ticketData.properties.latitude
-  );
+      parseFloat(
+        ticketData.properties.latitude
+      );
 
-const woningLng =
-  parseFloat(
-    ticketData.properties.longitude
-  );
+    const woningLng =
+      parseFloat(
+        ticketData.properties.longitude
+      );
 
-    // Gevraagde diensten uit ticket
     const gevraagdeDiensten =
       (ticketData.properties?.diensten || "")
         .split(";")
@@ -94,7 +89,6 @@ const woningLng =
     const contactsData =
       await contactsResponse.json();
 
-    // Alleen geschikte fotografen
     const fotografen =
       contactsData.results
 
@@ -103,7 +97,7 @@ const woningLng =
           c.properties.is_fotograaf === "true"
         )
 
-        // Moet alle gevraagde diensten hebben
+        // Juiste diensten
         .filter(c => {
 
           const diensten =
@@ -118,69 +112,72 @@ const woningLng =
 
         })
 
+        // Afstand berekenen
         .map(c => {
 
-  const afstandKm =
-    distanceKm(
-      woningLat,
-      woningLng,
-      parseFloat(
-        c.properties.latitude
-      ),
-      parseFloat(
-        c.properties.longitude
-      )
-    );
+          const afstandKm =
+            distanceKm(
+              woningLat,
+              woningLng,
+              parseFloat(
+                c.properties.latitude
+              ),
+              parseFloat(
+                c.properties.longitude
+              )
+            );
 
-  return {
-          id: c.id,
+          return {
 
-          firstname:
-            c.properties.firstname,
+            id: c.id,
 
-          lastname:
-            c.properties.lastname,
+            firstname:
+              c.properties.firstname,
 
-          is_fotograaf:
-            c.properties.is_fotograaf,
+            lastname:
+              c.properties.lastname,
 
-          diensten:
-            c.properties.diensten,
+            diensten:
+              c.properties.diensten,
 
-          latitude:
-            c.properties.latitude,
+            latitude:
+              c.properties.latitude,
 
-          longitude:
-            c.properties.longitude,
+            longitude:
+              c.properties.longitude,
 
-          max_reistijd_minuten:
-            c.properties.max_reistijd_minuten, 
+            max_reistijd_minuten:
+              c.properties.max_reistijd_minuten,
 
-    ,
-afstand_km:
-  Math.round(
-    afstandKm * 10
-  ) / 10
-       };
+            afstand_km:
+              Math.round(
+                afstandKm * 10
+              ) / 10
 
-})
-.sort(
-  (a, b) =>
-    a.afstand_km -
-    b.afstand_km
-);
+          };
+
+        })
+
+        // Dichtstbij eerst
+        .sort(
+          (a, b) =>
+            a.afstand_km -
+            b.afstand_km
+        );
 
     return res.status(200).json({
 
       woning: {
+
         latitude:
-          ticketData.properties?.latitude,
+          ticketData.properties.latitude,
 
         longitude:
-          ticketData.properties?.longitude,
+          ticketData.properties.longitude,
 
         diensten:
-          ticketData.properties?.diensten
+          ticketData.properties.diensten
+
       },
 
       fotografen
