@@ -4,7 +4,6 @@ function distanceKm(
   lat2,
   lon2
 ) {
-
   const R = 6371;
 
   const dLat =
@@ -31,7 +30,6 @@ function distanceKm(
     );
 
   return R * c;
-
 }
 
 export default async function handler(req, res) {
@@ -77,7 +75,7 @@ export default async function handler(req, res) {
 
     // Fotografen ophalen
     const contactsResponse = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,diensten,is_fotograaf,latitude,longitude,max_reistijd_minuten",
+      "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,diensten,is_fotograaf,latitude,longitude,max_reistijd_minuten,max_reisafstand_km",
       {
         headers: {
           Authorization:
@@ -95,6 +93,12 @@ export default async function handler(req, res) {
         // Alleen fotografen
         .filter(c =>
           c.properties.is_fotograaf === "true"
+        )
+
+        // GPS verplicht
+        .filter(c =>
+          c.properties.latitude &&
+          c.properties.longitude
         )
 
         // Juiste diensten
@@ -127,6 +131,18 @@ export default async function handler(req, res) {
               )
             );
 
+          const maxReisafstandKm =
+            Number(
+              c.properties.max_reisafstand_km || 999
+            );
+
+          console.log({
+            fotograaf:
+              `${c.properties.firstname} ${c.properties.lastname}`,
+            afstandKm,
+            maxReisafstandKm
+          });
+
           return {
 
             id: c.id,
@@ -149,6 +165,9 @@ export default async function handler(req, res) {
             max_reistijd_minuten:
               c.properties.max_reistijd_minuten,
 
+            max_reisafstand_km:
+              c.properties.max_reisafstand_km,
+
             afstand_km:
               Math.round(
                 afstandKm * 10
@@ -157,6 +176,14 @@ export default async function handler(req, res) {
           };
 
         })
+
+        // Max reisafstand filter
+        .filter(f =>
+          f.afstand_km <=
+          Number(
+            f.max_reisafstand_km || 999
+          )
+        )
 
         // Dichtstbij eerst
         .sort(
