@@ -12,7 +12,7 @@ export default async function handler(req, res) {
 
     // Ticket ophalen
     const ticketResponse = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}?properties=latitude,longitude`,
+      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}?properties=latitude,longitude,diensten`,
       {
         headers: {
           Authorization:
@@ -46,10 +46,11 @@ export default async function handler(req, res) {
         latitude:
           ticketData.properties?.latitude,
         longitude:
-          ticketData.properties?.longitude
+          ticketData.properties?.longitude,
+
+          diensten:
+    ticketData.properties.diensten
       },
-
-
 
 
 
