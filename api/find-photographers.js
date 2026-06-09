@@ -24,7 +24,11 @@ export default async function handler(req, res) {
     const ticketData =
       await ticketResponse.json();
 
- 
+    // Gevraagde diensten uit ticket
+    const gevraagdeDiensten =
+      (ticketData.properties?.diensten || "")
+        .split(";")
+        .filter(Boolean);
 
     // Fotografen ophalen
     const contactsResponse = await fetch(
@@ -40,44 +44,69 @@ export default async function handler(req, res) {
     const contactsData =
       await contactsResponse.json();
 
+    // Alleen geschikte fotografen
+    const fotografen =
+      contactsData.results
+
+        // Alleen fotografen
+        .filter(c =>
+          c.properties.is_fotograaf === "true"
+        )
+
+        // Moet alle gevraagde diensten hebben
+        .filter(c => {
+
+          const diensten =
+            (c.properties.diensten || "")
+              .split(";")
+              .filter(Boolean);
+
+          return gevraagdeDiensten.every(
+            dienst =>
+              diensten.includes(dienst)
+          );
+
+        })
+
+        .map(c => ({
+          id: c.id,
+
+          firstname:
+            c.properties.firstname,
+
+          lastname:
+            c.properties.lastname,
+
+          is_fotograaf:
+            c.properties.is_fotograaf,
+
+          diensten:
+            c.properties.diensten,
+
+          latitude:
+            c.properties.latitude,
+
+          longitude:
+            c.properties.longitude,
+
+          max_reistijd_minuten:
+            c.properties.max_reistijd_minuten
+        }));
+
     return res.status(200).json({
 
       woning: {
         latitude:
           ticketData.properties?.latitude,
+
         longitude:
           ticketData.properties?.longitude,
 
-          diensten:
-    ticketData.properties.diensten
+        diensten:
+          ticketData.properties?.diensten
       },
 
-
-
-
-      
-
-      fotografen:
-        contactsData.results.map(c => ({
-  id: c.id,
-  firstname: c.properties.firstname,
-  lastname: c.properties.lastname,
-
-  is_fotograaf:
-    c.properties.is_fotograaf,
-
-  diensten:
-    c.properties.diensten,
-
-  latitude:
-    c.properties.latitude,
-
-  longitude:
-    c.properties.longitude,
-
-  max_reistijd_minuten:
-    c.properties.max_reistijd_minuten
-        }))
+      fotografen
 
     });
 
