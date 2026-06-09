@@ -44,7 +44,10 @@ export default async function handler(req, res) {
       });
     }
 
+    // ==========================
     // Ticket ophalen
+    // ==========================
+
     const ticketResponse = await fetch(
       `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}?properties=latitude,longitude,diensten`,
       {
@@ -73,7 +76,10 @@ export default async function handler(req, res) {
         .split(";")
         .filter(Boolean);
 
+    // ==========================
     // Fotografen ophalen
+    // ==========================
+
     const contactsResponse = await fetch(
       "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,diensten,is_fotograaf,latitude,longitude,max_reistijd_minuten,max_reisafstand_km",
       {
@@ -101,7 +107,7 @@ export default async function handler(req, res) {
           c.properties.longitude
         )
 
-        // Juiste diensten
+        // Dienstenfilter
         .filter(c => {
 
           const diensten =
@@ -130,18 +136,6 @@ export default async function handler(req, res) {
                 c.properties.longitude
               )
             );
-
-          const maxReisafstandKm =
-            Number(
-              c.properties.max_reisafstand_km || 999
-            );
-
-          console.log({
-            fotograaf:
-              `${c.properties.firstname} ${c.properties.lastname}`,
-            afstandKm,
-            maxReisafstandKm
-          });
 
           return {
 
@@ -177,7 +171,7 @@ export default async function handler(req, res) {
 
         })
 
-        // Max reisafstand filter
+        // Reisafstand filter
         .filter(f =>
           f.afstand_km <=
           Number(
@@ -185,12 +179,62 @@ export default async function handler(req, res) {
           )
         )
 
-        // Dichtstbij eerst
+        // Sorteer dichtstbij eerst
         .sort(
           (a, b) =>
             a.afstand_km -
             b.afstand_km
         );
+
+    // ==========================
+    // Beschikbare fotografen
+    // opslaan op ticket
+    // ==========================
+
+    const beschikbareFotografen =
+      fotografen
+        .map(f => f.id)
+        .join(";");
+
+    console.log(
+      "Beschikbare fotografen:",
+      beschikbareFotografen
+    );
+
+    const updateResponse = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization:
+            `Bearer ${process.env.HUBSPOT_TOKEN}`,
+          "Content-Type":
+            "application/json"
+        },
+        body: JSON.stringify({
+          properties: {
+            beschikbare_fotografen:
+              beschikbareFotografen
+          }
+        })
+      }
+    );
+
+    if (!updateResponse.ok) {
+
+      const errorText =
+        await updateResponse.text();
+
+      console.error(
+        "HubSpot update fout:",
+        errorText
+      );
+
+    }
+
+    // ==========================
+    // Response
+    // ==========================
 
     return res.status(200).json({
 
@@ -206,6 +250,9 @@ export default async function handler(req, res) {
           ticketData.properties.diensten
 
       },
+
+      beschikbare_fotografen:
+        beschikbareFotografen,
 
       fotografen
 
