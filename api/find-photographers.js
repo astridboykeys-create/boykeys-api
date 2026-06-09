@@ -1,5 +1,45 @@
 export default async function handler(req, res) {
 
+  function distanceKm(
+  lat1,
+  lon1,
+  lat2,
+  lon2
+) {
+
+  const R = 6371;
+
+  const dLat =
+    (lat2 - lat1) *
+    Math.PI / 180;
+
+  const dLon =
+    (lon2 - lon1) *
+    Math.PI / 180;
+
+  const a =
+    Math.sin(dLat / 2) *
+    Math.sin(dLat / 2) +
+    Math.cos(
+      lat1 * Math.PI / 180
+    ) *
+    Math.cos(
+      lat2 * Math.PI / 180
+    ) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+  return R * c;
+
+}
+
   try {
 
     const { ticketId } = req.query;
@@ -23,6 +63,16 @@ export default async function handler(req, res) {
 
     const ticketData =
       await ticketResponse.json();
+
+    const woningLat =
+  parseFloat(
+    ticketData.properties.latitude
+  );
+
+const woningLng =
+  parseFloat(
+    ticketData.properties.longitude
+  );
 
     // Gevraagde diensten uit ticket
     const gevraagdeDiensten =
@@ -68,7 +118,21 @@ export default async function handler(req, res) {
 
         })
 
-        .map(c => ({
+        .map(c => {
+
+  const afstandKm =
+    distanceKm(
+      woningLat,
+      woningLng,
+      parseFloat(
+        c.properties.latitude
+      ),
+      parseFloat(
+        c.properties.longitude
+      )
+    );
+
+  return {
           id: c.id,
 
           firstname:
@@ -90,8 +154,21 @@ export default async function handler(req, res) {
             c.properties.longitude,
 
           max_reistijd_minuten:
-            c.properties.max_reistijd_minuten
-        }));
+            c.properties.max_reistijd_minuten, 
+
+    ,
+afstand_km:
+  Math.round(
+    afstandKm * 10
+  ) / 10
+       };
+
+})
+.sort(
+  (a, b) =>
+    a.afstand_km -
+    b.afstand_km
+);
 
     return res.status(200).json({
 
