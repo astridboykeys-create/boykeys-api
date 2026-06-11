@@ -31,6 +31,12 @@ export default async function handler(
 
   try {
 
+    const {
+      request_id,
+      calendly_event_uri,
+      calendly_invitee_uri
+    } = req.body;
+
     console.log(
       "BOOKING COMPLETE"
     );
@@ -43,8 +49,101 @@ export default async function handler(
       )
     );
 
+    // Ticket zoeken
+    const searchResponse = await fetch(
+      "https://api.hubapi.com/crm/v3/objects/tickets/search",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          Authorization:
+            `Bearer ${process.env.HUBSPOT_TOKEN}`
+        },
+        body: JSON.stringify({
+          filterGroups: [
+            {
+              filters: [
+                {
+                  propertyName:
+                    "request_id",
+                  operator: "EQ",
+                  value: request_id
+                }
+              ]
+            }
+          ],
+          properties: [
+            "request_id"
+          ],
+          limit: 1
+        })
+      }
+    );
+
+    const searchData =
+      await searchResponse.json();
+
+    if (
+      !searchData.results ||
+      searchData.results.length === 0
+    ) {
+
+      return res.status(404).json({
+        success: false,
+        error:
+          "Ticket niet gevonden"
+      });
+
+    }
+
+    const ticketId =
+      searchData.results[0].id;
+
+    console.log(
+      "Ticket gevonden:",
+      ticketId
+    );
+
+    // Ticket updaten
+    const updateResponse = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type":
+            "application/json",
+          Authorization:
+            `Bearer ${process.env.HUBSPOT_TOKEN}`
+        },
+        body: JSON.stringify({
+          properties: {
+
+            booking_status:
+              "Ingepland",
+
+            calendly_event_uri:
+              calendly_event_uri,
+
+            calendly_invitee_uri:
+              calendly_invitee_uri
+
+          }
+        })
+      }
+    );
+
+    const updateData =
+      await updateResponse.json();
+
+    console.log(
+      "Ticket bijgewerkt"
+    );
+
     return res.status(200).json({
-      success: true
+      success: true,
+      ticketId,
+      updateData
     });
 
   } catch (error) {
