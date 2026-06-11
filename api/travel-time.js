@@ -111,14 +111,19 @@ export default async function handler(
     const route =
       data.routes?.[0];
 
-    if (!route) {
+if (!route) {
 
-      return res.status(404).json({
-        error:
-          "Geen route gevonden"
-      });
+  return res.status(404).json({
 
-    }
+    error:
+      "Geen route gevonden",
+
+    googleResponse:
+      data
+
+  });
+
+}
 
     const distanceKm =
       Math.round(
