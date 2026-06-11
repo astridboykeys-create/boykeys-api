@@ -17,3 +17,7 @@ const nieuweEinde =
   new Date(
     "2026-06-17T20:00:00Z"
   );
+
+const overlap =
+  nieuweStart < bestaandeEinde &&
+  nieuweEinde > bestaandeStart;
