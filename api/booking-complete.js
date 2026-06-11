@@ -141,16 +141,22 @@ console.log(
         body: JSON.stringify({
           properties: {
 
-            booking_status:
-              "Ingepland",
+  booking_status:
+    "Ingepland",
 
-            calendly_event_uri:
-              calendly_event_uri,
+  calendly_event_uri:
+    calendly_event_uri,
 
-            calendly_invitee_uri:
-              calendly_invitee_uri
+  calendly_invitee_uri:
+    calendly_invitee_uri,
 
-          }
+  afspraak_start:
+    calendlyData.resource.start_time,
+
+  afspraak_einde:
+    calendlyData.resource.end_time
+
+}
         })
       }
     );
