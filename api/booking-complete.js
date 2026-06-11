@@ -100,6 +100,28 @@ export default async function handler(
     const ticketId =
       searchData.results[0].id;
 
+    const calendlyResponse = await fetch(
+  calendly_event_uri,
+  {
+    headers: {
+      Authorization:
+        `Bearer ${process.env.CALENDLY_TOKEN}`
+    }
+  }
+);
+
+const calendlyData =
+  await calendlyResponse.json();
+
+console.log(
+  "CALENDLY EVENT",
+  JSON.stringify(
+    calendlyData,
+    null,
+    2
+  )
+);
+
     console.log(
       "Ticket gevonden:",
       ticketId
