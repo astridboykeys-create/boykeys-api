@@ -60,9 +60,11 @@ export default async function handler(req, res) {
             {
               filters: [
                 {
-                  propertyName: "request_id",
+                  propertyName:
+                    "request_id",
                   operator: "EQ",
-                  value: request_id
+                  value:
+                    request_id
                 }
               ]
             }
@@ -82,97 +84,80 @@ export default async function handler(req, res) {
       !searchData.results ||
       searchData.results.length === 0
     ) {
+
       return res.status(404).json({
-        error: "Ticket niet gevonden"
+        error:
+          "Ticket niet gevonden"
       });
+
     }
 
     const ticketId =
       searchData.results[0].id;
 
+    // Gekoppeld contact ophalen
     const associationResponse = await fetch(
-  `https://api.hubapi.com/crm/v4/objects/tickets/${ticketId}/associations/contacts`,
-  {
-    headers: {
-      Authorization:
-        `Bearer ${process.env.HUBSPOT_TOKEN}`
-    }
-  }
-);
-
-const associationData =
-  await associationResponse.json();
-
-    const contactId =
-  associationData.results?.[0]?.toObjectId;
-
-let contactName = "";
-let contactEmail = "";
-
-if (contactId) {
-
-  const customerResponse = await fetch(
-    `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=firstname,lastname,email`,
-    {
-      headers: {
-        Authorization:
-          `Bearer ${process.env.HUBSPOT_TOKEN}`
-      }
-    }
-  );
-
-  const customerData =
-    await customerResponse.json();
-
-  console.log(
-    "CUSTOMER DATA",
-    JSON.stringify(
-      customerData,
-      null,
-      2
-    )
-  );
-
-  contactName =
-    `${customerData.properties.firstname || ""} ${customerData.properties.lastname || ""}`.trim();
-
-  contactEmail =
-    customerData.properties.email || "";
-
-}
-
-console.log(
-  "ASSOCIATIONS",
-  JSON.stringify(
-    associationData,
-    null,
-    2
-  )
-);
-
-    // Ticket updaten
-    const updateResponse = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
+      `https://api.hubapi.com/crm/v4/objects/tickets/${ticketId}/associations/contacts`,
       {
-        method: "PATCH",
         headers: {
-          "Content-Type": "application/json",
           Authorization:
             `Bearer ${process.env.HUBSPOT_TOKEN}`
-        },
-        body: JSON.stringify({
-          properties: {
-            gekozen_fotograaf:
-              photographer_id
-          }
-        })
+        }
       }
     );
 
-    const updateData =
-      await updateResponse.json();
+    const associationData =
+      await associationResponse.json();
 
-    // Contact ophalen
+    const contactId =
+      associationData.results?.[0]?.toObjectId;
+
+    let contactName = "";
+    let contactEmail = "";
+
+    if (contactId) {
+
+      const customerResponse =
+        await fetch(
+          `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=firstname,lastname,email`,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${process.env.HUBSPOT_TOKEN}`
+            }
+          }
+        );
+
+      const customerData =
+        await customerResponse.json();
+
+      console.log(
+        "CUSTOMER DATA",
+        JSON.stringify(
+          customerData,
+          null,
+          2
+        )
+      );
+
+      contactName =
+        `${customerData.properties.firstname || ""} ${customerData.properties.lastname || ""}`.trim();
+
+      contactEmail =
+        customerData.properties.email || "";
+
+    }
+
+    console.log(
+      "ASSOCIATIONS",
+      JSON.stringify(
+        associationData,
+        null,
+        2
+      )
+    );
+
+    // Fotograaf ophalen
     const contactResponse = await fetch(
       `https://api.hubapi.com/crm/v3/objects/contacts/${photographer_id}?properties=calendly_link,firstname,lastname`,
       {
@@ -186,7 +171,10 @@ console.log(
     const contactData =
       await contactResponse.json();
 
-    console.log("CONTACT DATA");
+    console.log(
+      "CONTACT DATA"
+    );
+
     console.log(
       JSON.stringify(
         contactData,
@@ -198,24 +186,73 @@ console.log(
     const calendlyLink =
       contactData?.properties?.calendly_link || "";
 
-return res.status(200).json({
-  success: true,
-  ticketId,
-  photographer_id,
-  calendlyLink,
-  contactName,
-  contactEmail,
-  updateData
-});
-    
+    const photographerName =
+      `${contactData?.properties?.firstname || ""} ${contactData?.properties?.lastname || ""}`.trim();
+
+    // Ticket updaten
+    const updateResponse = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type":
+            "application/json",
+          Authorization:
+            `Bearer ${process.env.HUBSPOT_TOKEN}`
+        },
+        body: JSON.stringify({
+
+          properties: {
+
+            geselecteerde_fotograaf:
+              photographer_id,
+
+            fotograaf_geselecteerd_op:
+              new Date().toISOString(),
+
+            booking_status:
+              "Fotograaf gekozen"
+
+          }
+
+        })
+      }
+    );
+
+    const updateData =
+      await updateResponse.json();
+
+    return res.status(200).json({
+
+      success: true,
+
+      ticketId,
+
+      photographer_id,
+
+      photographerName,
+
+      calendlyLink,
+
+      contactName,
+
+      contactEmail,
+
+      updateData
+
+    });
 
   } catch (error) {
 
     console.error(error);
 
     return res.status(500).json({
+
       success: false,
-      error: error.message
+
+      error:
+        error.message
+
     });
 
   }
