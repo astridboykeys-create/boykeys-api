@@ -103,6 +103,44 @@ export default async function handler(req, res) {
 const associationData =
   await associationResponse.json();
 
+    const contactId =
+  associationData.results?.[0]?.toObjectId;
+
+let contactName = "";
+let contactEmail = "";
+
+if (contactId) {
+
+  const customerResponse = await fetch(
+    `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=firstname,lastname,email`,
+    {
+      headers: {
+        Authorization:
+          `Bearer ${process.env.HUBSPOT_TOKEN}`
+      }
+    }
+  );
+
+  const customerData =
+    await customerResponse.json();
+
+  console.log(
+    "CUSTOMER DATA",
+    JSON.stringify(
+      customerData,
+      null,
+      2
+    )
+  );
+
+  contactName =
+    `${customerData.properties.firstname || ""} ${customerData.properties.lastname || ""}`.trim();
+
+  contactEmail =
+    customerData.properties.email || "";
+
+}
+
 console.log(
   "ASSOCIATIONS",
   JSON.stringify(
@@ -160,13 +198,16 @@ console.log(
     const calendlyLink =
       contactData?.properties?.calendly_link || "";
 
-    return res.status(200).json({
-      success: true,
-      ticketId,
-      photographer_id,
-      calendlyLink,
-      updateData
-    });
+return res.status(200).json({
+  success: true,
+  ticketId,
+  photographer_id,
+  calendlyLink,
+  contactName,
+  contactEmail,
+  updateData
+});
+    
 
   } catch (error) {
 
