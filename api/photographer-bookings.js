@@ -83,6 +83,8 @@ export default async function handler(
           properties: [
 
             "volledig_adres_google",
+            "latitude",
+            "longitude",
             "afspraak_start",
             "afspraak_einde",
             "booking_status",
@@ -122,6 +124,14 @@ export default async function handler(
             ticket.properties
               .volledig_adres_google,
 
+          latitude:
+            ticket.properties
+              .latitude,
+
+          longitude:
+            ticket.properties
+              .longitude,
+
           start:
             ticket.properties
               .afspraak_start,
@@ -152,7 +162,8 @@ export default async function handler(
     console.error(error);
 
     return res.status(500).json({
-      error: error.message
+      error:
+        error.message
     });
 
   }
