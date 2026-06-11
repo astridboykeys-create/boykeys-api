@@ -90,6 +90,28 @@ export default async function handler(req, res) {
     const ticketId =
       searchData.results[0].id;
 
+    const associationResponse = await fetch(
+  `https://api.hubapi.com/crm/v4/objects/tickets/${ticketId}/associations/contacts`,
+  {
+    headers: {
+      Authorization:
+        `Bearer ${process.env.HUBSPOT_TOKEN}`
+    }
+  }
+);
+
+const associationData =
+  await associationResponse.json();
+
+console.log(
+  "ASSOCIATIONS",
+  JSON.stringify(
+    associationData,
+    null,
+    2
+  )
+);
+
     // Ticket updaten
     const updateResponse = await fetch(
       `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
