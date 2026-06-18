@@ -30,6 +30,94 @@ function hasOverlap(
 
 }
 
+async function getTravelTime(
+  fromLat,
+  fromLng,
+  toLat,
+  toLng
+) {
+
+  const response =
+    await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          "X-Goog-Api-Key":
+            process.env.GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask":
+            "routes.duration,routes.distanceMeters"
+        },
+        body: JSON.stringify({
+
+          origin: {
+            location: {
+              latLng: {
+                latitude:
+                  parseFloat(fromLat),
+                longitude:
+                  parseFloat(fromLng)
+              }
+            }
+          },
+
+          destination: {
+            location: {
+              latLng: {
+                latitude:
+                  parseFloat(toLat),
+                longitude:
+                  parseFloat(toLng)
+              }
+            }
+          },
+
+          travelMode:
+            "DRIVE"
+
+        })
+
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (
+    !data.routes ||
+    !data.routes.length
+  ) {
+
+    throw new Error(
+      "Geen route gevonden"
+    );
+
+  }
+
+  const duration =
+    data.routes[0].duration;
+
+  const distanceMeters =
+    data.routes[0].distanceMeters;
+
+  return {
+
+    travel_minutes:
+      Math.round(
+        parseInt(duration) / 60
+      ),
+
+    distance_km:
+      Math.round(
+        distanceMeters / 1000
+      )
+
+  };
+
+}
+
 
 export default async function handler(
   req,
