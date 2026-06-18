@@ -1,3 +1,36 @@
+function addMinutes(date, minutes) {
+
+  return new Date(
+    date.getTime() +
+    minutes * 60 * 1000
+  );
+
+}
+
+function subtractMinutes(date, minutes) {
+
+  return new Date(
+    date.getTime() -
+    minutes * 60 * 1000
+  );
+
+}
+
+function hasOverlap(
+  start1,
+  end1,
+  start2,
+  end2
+) {
+
+  return (
+    start1 < end2 &&
+    end1 > start2
+  );
+
+}
+
+
 export default async function handler(
   req,
   res
@@ -209,12 +242,15 @@ for (
         );
 
       const overlap =
+  hasOverlap(
 
-        nieuweStart <
-          bestaandeEinde &&
+    nieuweStart,
+    nieuweEinde,
 
-        nieuweEinde >
-          bestaandeStart;
+    bestaandeStart,
+    bestaandeEinde
+
+  );
 
       if (overlap) {
 
