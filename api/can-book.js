@@ -89,11 +89,13 @@ export default async function handler(
 
             properties: [
 
-              "volledig_adres_google",
-              "afspraak_start",
-              "afspraak_einde"
+  "volledig_adres_google",
+  "afspraak_start",
+  "afspraak_einde",
+  "latitude",
+  "longitude"
 
-            ],
+],
 
             limit: 100
 
@@ -103,6 +105,85 @@ export default async function handler(
 
     const searchData =
       await searchResponse.json();
+
+    const bookings =
+  (searchData.results || [])
+
+    .map(ticket => ({
+
+      ticketId:
+        ticket.id,
+
+      adres:
+        ticket.properties
+          .volledig_adres_google,
+
+      start:
+        ticket.properties
+          .afspraak_start,
+
+      einde:
+        ticket.properties
+          .afspraak_einde,
+
+      latitude:
+        ticket.properties
+          .latitude,
+
+      longitude:
+        ticket.properties
+          .longitude
+
+    }))
+
+    .sort(
+      (a, b) =>
+        new Date(a.start) -
+        new Date(b.start)
+    );
+
+let previousBooking =
+  null;
+
+let nextBooking =
+  null;
+
+for (
+  const booking of bookings
+) {
+
+  const bookingStart =
+    new Date(
+      booking.start
+    );
+
+  const bookingEnd =
+    new Date(
+      booking.einde
+    );
+
+  if (
+    bookingEnd <=
+    nieuweStart
+  ) {
+
+    previousBooking =
+      booking;
+
+  }
+
+  if (
+    bookingStart >=
+      nieuweEinde &&
+    !nextBooking
+  ) {
+
+    nextBooking =
+      booking;
+
+  }
+
+}
 
     let overlapFound =
       false;
@@ -165,18 +246,32 @@ export default async function handler(
 
     }
 
-    return res.status(200).json({
+    console.log(
+  "Previous booking:",
+  previousBooking
+);
 
-      canBook:
-        !overlapFound,
+console.log(
+  "Next booking:",
+  nextBooking
+);
 
-      overlap:
-        overlapFound,
+   return res.status(200).json({
 
-      conflict:
-        overlapBooking
+  canBook:
+    !overlapFound,
 
-    });
+  overlap:
+    overlapFound,
+
+  conflict:
+    overlapBooking,
+
+  previousBooking,
+
+  nextBooking
+
+});
 
   } catch (error) {
 
