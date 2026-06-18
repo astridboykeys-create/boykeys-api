@@ -151,15 +151,23 @@ export default async function handler(
       einde
     } = req.query;
 
+const {
+  latitude,
+  longitude
+} = req.query;
+    
+
     if (
-      !photographer_id ||
-      !start ||
-      !einde
-    ) {
+  !photographer_id ||
+  !start ||
+  !einde ||
+  !latitude ||
+  !longitude
+) {
 
       return res.status(400).json({
         error:
-          "photographer_id, start en einde zijn verplicht"
+          "photographer_id, start, einde, latitude en longitude zijn verplicht"
       });
 
     }
