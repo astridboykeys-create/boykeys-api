@@ -1,4 +1,5 @@
 import { getTravelInfo } from "../lib/googleRoutes.js";
+import { findPreviousBooking } from "../lib/planner.js";
 
 function addMinutes(date, minutes) {
 
@@ -187,49 +188,28 @@ const {
         new Date(b.start)
     );
 
-let previousBooking =
-  null;
+const previousBooking =
+  findPreviousBooking(
+    bookings,
+    nieuweStart
+  );
 
 let nextBooking =
   null;
 
-for (
-  const booking of bookings
-) {
+for (const booking of bookings) {
 
   const bookingStart =
-    new Date(
-      booking.start
-    );
-
-  const bookingEnd =
-    new Date(
-      booking.einde
-    );
+    new Date(booking.start);
 
   if (
-    bookingEnd <=
-    nieuweStart
-  ) {
-
-    previousBooking =
-      booking;
-
-  }
-
-  if (
-    bookingStart >=
-      nieuweEinde &&
+    bookingStart >= nieuweEinde &&
     !nextBooking
   ) {
-
-    nextBooking =
-      booking;
-
+    nextBooking = booking;
   }
 
 }
-
     let travelFromPrevious = null;
 
 if (previousBooking) {
