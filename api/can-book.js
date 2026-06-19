@@ -5,6 +5,7 @@ import {
   findPreviousBooking,
   findNextBooking,
   calculateFirstPossibleStart,
+  calculateLatestPossibleEnd,
   hasOverlap,
   findOverlapBooking
 } from "../lib/planner.js";
@@ -159,6 +160,14 @@ const firstPossibleStart =
     bufferMinutes
   );
 
+    const latestPossibleEnd =
+  calculateLatestPossibleEnd(
+    nieuweEinde,
+    nextBooking,
+    travelToNext,
+    bufferMinutes
+  );
+
     const {
   overlap,
   conflict
@@ -193,7 +202,11 @@ conflict,
 
   travelFromPrevious,
 
-  firstPossibleStart
+  firstPossibleStart,
+
+     latestPossibleEnd,
+
+     travelToNext
 
 });
 
