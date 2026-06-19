@@ -8,12 +8,6 @@ import {
   canSchedule
 } from "../lib/planner.js";
 
-
-
-
-
-
-
 function addMinutes(date, minutes) {
 
   return new Date(
@@ -165,8 +159,17 @@ const nextBooking =
     let travelFromPrevious = null;
 
 if (previousBooking) {
-travelFromPrevious =
-  await getTravelInfo(
+
+  travelFromPrevious =
+    await getTravelInfo(
+
+      previousBooking.latitude,
+      previousBooking.longitude,
+
+      latitude,
+      longitude
+
+    );
 
 }
 
