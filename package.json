@@ -2,6 +2,7 @@
   "name": "boykeys-api",
   "version": "2.0.0",
   "type": "module",
+  "private": true,
   "dependencies": {
     "googleapis": "^150.0.1"
   }
