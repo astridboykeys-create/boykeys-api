@@ -1,7 +1,8 @@
 import {
   searchTickets,
   getTicketAssociations,
-  getContact
+  getContact,
+  updateTicket
 } from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
@@ -176,37 +177,20 @@ const customerData =
       `${contactData?.properties?.firstname || ""} ${contactData?.properties?.lastname || ""}`.trim();
 
     // Ticket updaten
-    const updateResponse = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type":
-            "application/json",
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`
-        },
-        body: JSON.stringify({
-
-          properties: {
-
-            geselecteerde_fotograaf:
-              photographer_id,
-
-            fotograaf_geselecteerd_op:
-              new Date().toISOString(),
-
-            booking_status:
-              "Fotograaf gekozen"
-
-          }
-
-        })
-      }
-    );
-
     const updateData =
-      await updateResponse.json();
+  await updateTicket(
+    ticketId,
+    {
+      geselecteerde_fotograaf:
+        photographer_id,
+
+      fotograaf_geselecteerd_op:
+        new Date().toISOString(),
+
+      booking_status:
+        "Fotograaf gekozen"
+    }
+  );
 
     return res.status(200).json({
 
