@@ -168,6 +168,8 @@ const firstPossibleStart =
     bufferMinutes
   );
 
+    
+
     const {
   overlap,
   conflict
@@ -176,6 +178,14 @@ const firstPossibleStart =
   nieuweStart,
   nieuweEinde
 );
+
+    const canBook =
+
+  !overlap &&
+
+  nieuweStart >= firstPossibleStart &&
+
+  nieuweEinde <= latestPossibleEnd;
 
     console.log(
   "Previous booking:",
@@ -189,8 +199,7 @@ console.log(
 
    return res.status(200).json({
      
-  canBook:
-  !overlap,
+canBook,
 
 overlap,
 
