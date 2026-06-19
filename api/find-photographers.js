@@ -1,6 +1,7 @@
 import {
   getTicket,
-  getPhotographers
+  getPhotographers,
+  updateTicket
 } from "../lib/hubspot.js";
 
 function distanceKm(
@@ -193,36 +194,24 @@ const contactsData =
       beschikbareFotografen
     );
 
-    const updateResponse = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`,
-          "Content-Type":
-            "application/json"
-        },
-        body: JSON.stringify({
-          properties: {
-            beschikbare_fotografen:
-              beschikbareFotografen
-          }
-        })
-      }
-    );
+    try {
 
-    if (!updateResponse.ok) {
-
-      const errorText =
-        await updateResponse.text();
-
-      console.error(
-        "HubSpot update fout:",
-        errorText
-      );
-
+  await updateTicket(
+    ticketId,
+    {
+      beschikbare_fotografen:
+        beschikbareFotografen
     }
+  );
+
+} catch (error) {
+
+  console.error(
+    "HubSpot update fout:",
+    error.message
+  );
+
+}
 
     // ==========================
     // Response
