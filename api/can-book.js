@@ -6,7 +6,6 @@ import {
   findNextBooking,
   calculateFirstPossibleStart,
   calculateLatestPossibleEnd,
-  hasOverlap,
   findOverlapBooking
 } from "../lib/planner.js";
 
