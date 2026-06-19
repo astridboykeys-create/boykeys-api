@@ -314,6 +314,23 @@ for (
 
 }
 
+    let travelFromPrevious = null;
+
+if (previousBooking) {
+
+  travelFromPrevious =
+    await getTravelTime(
+
+      previousBooking.latitude,
+      previousBooking.longitude,
+
+      latitude,
+      longitude
+
+    );
+
+}
+
     let overlapFound =
       false;
 
@@ -401,7 +418,9 @@ console.log(
 
   previousBooking,
 
-  nextBooking
+  nextBooking,
+
+     travelFromPrevious
 
 });
 
