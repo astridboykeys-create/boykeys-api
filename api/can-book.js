@@ -1,4 +1,5 @@
 import { getTravelInfo } from "../lib/googleRoutes.js";
+import { getBookings } from "../lib/hubspot.js";
 
 import {
   findPreviousBooking,
@@ -101,61 +102,10 @@ const {
       new Date(einde);
 
     // Alle ingeplande tickets ophalen
-    const searchResponse =
-      await fetch(
-        "https://api.hubapi.com/crm/v3/objects/tickets/search",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-            Authorization:
-              `Bearer ${process.env.HUBSPOT_TOKEN}`
-          },
-          body: JSON.stringify({
-
-            filterGroups: [
-              {
-                filters: [
-
-                  {
-                    propertyName:
-                      "geselecteerde_fotograaf",
-                    operator: "EQ",
-                    value:
-                      photographer_id
-                  },
-
-                  {
-                    propertyName:
-                      "booking_status",
-                    operator: "EQ",
-                    value:
-                      "Ingepland"
-                  }
-
-                ]
-              }
-            ],
-
-            properties: [
-
-  "volledig_adres_google",
-  "afspraak_start",
-  "afspraak_einde",
-  "latitude",
-  "longitude"
-
-],
-
-            limit: 100
-
-          })
-        }
-      );
-
-    const searchData =
-      await searchResponse.json();
+  const searchData =
+  await getBookings(
+    photographer_id
+  );
 
     const bookings =
   (searchData.results || [])
