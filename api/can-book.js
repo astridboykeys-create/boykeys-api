@@ -4,23 +4,12 @@ import { getTravelInfo } from "../lib/googleRoutes.js";
 import {
   findPreviousBooking,
   findNextBooking,
-  calculateFirstPossibleStart
+  calculateFirstPossibleStart,
+  hasOverlap
 } from "../lib/planner.js";
 
 
-function hasOverlap(
-  start1,
-  end1,
-  start2,
-  end2
-) {
 
-  return (
-    start1 < end2 &&
-    end1 > start2
-  );
-
-}
 
 
 
