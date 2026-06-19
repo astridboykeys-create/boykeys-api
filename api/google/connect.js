@@ -1,5 +1,5 @@
-import { enableCors } from "../lib/cors.js";
-import { createOAuthClient } from "../lib/googleAuth.js";
+import { enableCors } from "../../lib/cors.js";
+import { createOAuthClient } from "../../lib/googleAuth.js";
 
 export default async function handler(req, res) {
 
