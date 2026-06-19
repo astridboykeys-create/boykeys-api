@@ -142,69 +142,14 @@ const firstPossibleStart =
     bufferMinutes
   );
 
-    let overlapFound =
-      false;
-
-    let overlapBooking =
-      null;
-
-    for (
-      const ticket of
-      searchData.results || []
-    ) {
-
-      const bestaandeStart =
-        new Date(
-          ticket.properties
-            .afspraak_start
-        );
-
-      const bestaandeEinde =
-        new Date(
-          ticket.properties
-            .afspraak_einde
-        );
-
-      const overlap =
-  hasOverlap(
-
-    nieuweStart,
-    nieuweEinde,
-
-    bestaandeStart,
-    bestaandeEinde
-
-  );
-
-      if (overlap) {
-
-        overlapFound =
-          true;
-
-        overlapBooking = {
-
-          ticketId:
-            ticket.id,
-
-          adres:
-            ticket.properties
-              .volledig_adres_google,
-
-          start:
-            ticket.properties
-              .afspraak_start,
-
-          einde:
-            ticket.properties
-              .afspraak_einde
-
-        };
-
-        break;
-
-      }
-
-    }
+    const {
+  overlap,
+  conflict
+} = findOverlapBooking(
+  bookings,
+  nieuweStart,
+  nieuweEinde
+);
 
     console.log(
   "Previous booking:",
@@ -219,13 +164,11 @@ console.log(
    return res.status(200).json({
      
   canBook:
-    !overlapFound,
+  !overlap,
 
-  overlap:
-    overlapFound,
+overlap,
 
-  conflict:
-    overlapBooking,
+conflict,
 
   previousBooking,
 
