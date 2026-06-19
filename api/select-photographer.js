@@ -1,6 +1,7 @@
 import {
   searchTickets,
-  getTicketAssociations
+  getTicketAssociations,
+  getContact
 } from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
@@ -106,19 +107,15 @@ const associationData =
 
     if (contactId) {
 
-      const customerResponse =
-        await fetch(
-          `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}?properties=firstname,lastname,email`,
-          {
-            headers: {
-              Authorization:
-                `Bearer ${process.env.HUBSPOT_TOKEN}`
-            }
-          }
-        );
-
-      const customerData =
-        await customerResponse.json();
+const customerData =
+  await getContact(
+    contactId,
+    [
+      "firstname",
+      "lastname",
+      "email"
+    ]
+  );
 
       console.log(
         "CUSTOMER DATA",
