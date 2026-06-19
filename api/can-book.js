@@ -1,5 +1,6 @@
 import { getTravelInfo } from "../lib/googleRoutes.js";
 import { getBookings } from "../lib/hubspot.js";
+import { enableCors } from "../lib/cors.js";
 
 import {
   findPreviousBooking,
@@ -47,24 +48,7 @@ export default async function handler(
   res
 ) {
 
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    "*"
-  );
-
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,OPTIONS"
-  );
-
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "*"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (enableCors(req, res)) return;
 
   try {
 
