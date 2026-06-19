@@ -1,3 +1,7 @@
+import {
+  searchTickets
+} from "../lib/hubspot.js";
+
 export default async function handler(req, res) {
 
   // CORS
@@ -46,39 +50,30 @@ export default async function handler(req, res) {
     }
 
     // Ticket zoeken op request_id
-    const searchResponse = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/tickets/search",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`
-        },
-        body: JSON.stringify({
-          filterGroups: [
-            {
-              filters: [
-                {
-                  propertyName:
-                    "request_id",
-                  operator: "EQ",
-                  value:
-                    request_id
-                }
-              ]
-            }
-          ],
-          properties: [
-            "request_id"
-          ],
-          limit: 1
-        })
-      }
-    );
+const searchData =
+  await searchTickets({
 
-    const searchData =
-      await searchResponse.json();
+    filterGroups: [
+      {
+        filters: [
+          {
+            propertyName:
+              "request_id",
+            operator: "EQ",
+            value:
+              request_id
+          }
+        ]
+      }
+    ],
+
+    properties: [
+      "request_id"
+    ],
+
+    limit: 1
+
+  });
 
     if (
       !searchData.results ||
