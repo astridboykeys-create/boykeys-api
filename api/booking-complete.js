@@ -1,7 +1,6 @@
 import {
   searchTickets,
   updateTicket,
-  getContact
 } from "../lib/hubspot.js";
 
 export default async function handler(
@@ -124,41 +123,28 @@ console.log(
     );
 
     // Ticket updaten
-    const updateResponse = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type":
-            "application/json",
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`
-        },
-        body: JSON.stringify({
-          properties: {
+   const updateData =
+  await updateTicket(
+    ticketId,
+    {
 
-  booking_status:
-    "Ingepland",
+      booking_status:
+        "Ingepland",
 
-  calendly_event_uri:
-    calendly_event_uri,
+      calendly_event_uri:
+        calendly_event_uri,
 
-  calendly_invitee_uri:
-    calendly_invitee_uri,
+      calendly_invitee_uri:
+        calendly_invitee_uri,
 
-  afspraak_start:
-    calendlyData.resource.start_time,
+      afspraak_start:
+        calendlyData.resource.start_time,
 
-  afspraak_einde:
-    calendlyData.resource.end_time
+      afspraak_einde:
+        calendlyData.resource.end_time
 
-}
-        })
-      }
-    );
-
-    const updateData =
-      await updateResponse.json();
+    }
+  );
 
     console.log(
       "Ticket bijgewerkt"
