@@ -100,21 +100,26 @@ async function getTravelTime(
     data.routes[0].duration;
 
   const distanceMeters =
-    data.routes[0].distanceMeters;
+  data.routes[0].distanceMeters || 0;
 
-  return {
+return {
 
-    travel_minutes:
+  travel_minutes:
+    Math.max(
+      1,
       Math.round(
         parseInt(duration) / 60
-      ),
-
-    distance_km:
-      Math.round(
-        distanceMeters / 1000
       )
+    ),
 
-  };
+  distance_km:
+    Number(
+      (
+        distanceMeters / 1000
+      ).toFixed(1)
+    )
+
+};
 
 }
 
