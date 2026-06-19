@@ -4,8 +4,7 @@ import { getTravelInfo } from "../lib/googleRoutes.js";
 import {
   findPreviousBooking,
   findNextBooking,
-  calculateFirstPossibleStart,
-  canSchedule
+  calculateFirstPossibleStart
 } from "../lib/planner.js";
 
 function addMinutes(date, minutes) {
@@ -127,23 +126,7 @@ const {
         new Date(b.start)
     );
 
-    const plannerResult =
-  await canSchedule({
-
-    bookings,
-
-    requestedStart:
-      nieuweStart,
-
-    requestedEnd:
-      nieuweEinde
-
-  });
-
-console.log(
-  "PLANNER RESULT",
-  plannerResult
-);
+    
 
 const previousBooking =
   findPreviousBooking(
@@ -261,8 +244,6 @@ console.log(
 );
 
    return res.status(200).json({
-
-     plannerResult,
      
   canBook:
     !overlapFound,
