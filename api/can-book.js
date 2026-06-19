@@ -2,7 +2,8 @@ import { getTravelInfo } from "../lib/googleRoutes.js";
 
 import {
   findPreviousBooking,
-  findNextBooking
+  findNextBooking,
+  calculateFirstPossibleStart
 } from "../lib/planner.js";
 
 function addMinutes(date, minutes) {
@@ -216,30 +217,13 @@ travelFromPrevious =
     process.env.DEFAULT_BUFFER_MINUTES || "15"
   );
 
-let firstPossibleStart =
-  nieuweStart;
-
-if (
-  previousBooking &&
-  travelFromPrevious
-) {
-
-  const previousEnd =
-    new Date(
-      previousBooking.einde
-    );
-
-  firstPossibleStart =
-    addMinutes(
-
-      previousEnd,
-
-      bufferMinutes +
-      travelFromPrevious.travel_minutes
-
-    );
-
-}
+const firstPossibleStart =
+  calculateFirstPossibleStart(
+    nieuweStart,
+    previousBooking,
+    travelFromPrevious,
+    bufferMinutes
+  );
 
     let overlapFound =
       false;
