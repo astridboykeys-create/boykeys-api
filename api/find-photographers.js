@@ -1,3 +1,7 @@
+import {
+  getTicket
+} from "../lib/hubspot.js";
+
 function distanceKm(
   lat1,
   lon1,
@@ -48,18 +52,15 @@ export default async function handler(req, res) {
     // Ticket ophalen
     // ==========================
 
-    const ticketResponse = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/tickets/${ticketId}?properties=latitude,longitude,diensten`,
-      {
-        headers: {
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`
-        }
-      }
-    );
-
-    const ticketData =
-      await ticketResponse.json();
+const ticketData =
+  await getTicket(
+    ticketId,
+    [
+      "latitude",
+      "longitude",
+      "diensten"
+    ]
+  );
 
     const woningLat =
       parseFloat(
