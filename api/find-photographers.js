@@ -89,11 +89,6 @@ const contactsData =
     const fotografen =
       contactsData.results
 
-        // Alleen fotografen
-        .filter(c =>
-          c.properties.is_fotograaf === "true"
-        )
-
         // GPS verplicht
         .filter(c =>
           c.properties.latitude &&
