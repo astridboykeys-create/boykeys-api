@@ -1,13 +1,18 @@
-import { getTravelInfo } from "../lib/googleRoutes.js";
-import { getBookings } from "../lib/hubspot.js";
 import { enableCors } from "../lib/cors.js";
-import { canSchedule } from "../lib/planner.js";
-
+import { getBookings } from "../lib/hubspot.js";
+import { getTravelInfo } from "../lib/googleRoutes.js";
 import {
   findPreviousBooking,
   findNextBooking,
-  calculateFirstPossibleStart
+  calculateFirstPossibleStart,
+  canSchedule
 } from "../lib/planner.js";
+
+
+
+
+
+
 
 function addMinutes(date, minutes) {
 
