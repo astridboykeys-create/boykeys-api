@@ -254,6 +254,8 @@ console.log(
 
    return res.status(200).json({
 
+     plannerResult,
+     
   canBook:
     !overlapFound,
 
