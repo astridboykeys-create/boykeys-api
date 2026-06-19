@@ -129,6 +129,23 @@ if (previousBooking) {
 
 }
 
+    let travelToNext = null;
+
+if (nextBooking) {
+
+  travelToNext =
+    await getTravelInfo(
+
+      latitude,
+      longitude,
+
+      nextBooking.latitude,
+      nextBooking.longitude
+
+    );
+
+}
+
     const bufferMinutes =
   parseInt(
     process.env.DEFAULT_BUFFER_MINUTES || "15"
