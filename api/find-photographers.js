@@ -1,5 +1,6 @@
 import {
-  getTicket
+  getTicket,
+  getPhotographers
 } from "../lib/hubspot.js";
 
 function distanceKm(
@@ -81,18 +82,8 @@ const ticketData =
     // Fotografen ophalen
     // ==========================
 
-    const contactsResponse = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,diensten,is_fotograaf,latitude,longitude,max_reistijd_minuten,max_reisafstand_km",
-      {
-        headers: {
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`
-        }
-      }
-    );
-
-    const contactsData =
-      await contactsResponse.json();
+const contactsData =
+  await getPhotographers();
 
     const fotografen =
       contactsData.results
