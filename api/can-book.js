@@ -336,6 +336,36 @@ if (previousBooking) {
 
 }
 
+    const bufferMinutes =
+  parseInt(
+    process.env.DEFAULT_BUFFER_MINUTES || "15"
+  );
+
+let firstPossibleStart =
+  nieuweStart;
+
+if (
+  previousBooking &&
+  travelFromPrevious
+) {
+
+  const previousEnd =
+    new Date(
+      previousBooking.einde
+    );
+
+  firstPossibleStart =
+    addMinutes(
+
+      previousEnd,
+
+      bufferMinutes +
+      travelFromPrevious.travel_minutes
+
+    );
+
+}
+
     let overlapFound =
       false;
 
@@ -425,7 +455,9 @@ console.log(
 
   nextBooking,
 
-     travelFromPrevious
+  travelFromPrevious,
+
+  firstPossibleStart
 
 });
 
