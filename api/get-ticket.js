@@ -1,4 +1,6 @@
-import { hubspotRequest }
+import {
+  searchTickets
+}
 from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
@@ -34,34 +36,28 @@ export default async function handler(req, res) {
   try {
 
    const ticketData =
-  await hubspotRequest(
+  await searchTickets({
 
-    "/crm/v3/objects/tickets/search",
+    filterGroups: [
+      {
+        filters: [
+          {
+            propertyName:
+              "request_id",
+            operator: "EQ",
+            value: requestId
+          }
+        ]
+      }
+    ],
 
-    "POST",
+    properties: [
+      "beschikbare_fotografen"
+    ],
 
-    {
-      filterGroups: [
-        {
-          filters: [
-            {
-              propertyName: "request_id",
-              operator: "EQ",
-              value: requestId
-            }
-          ]
-        }
-      ],
+    limit: 1
 
-      properties: [
-        "beschikbare_fotografen"
-      ],
-
-      limit: 1
-
-    }
-
-  );
+  });
 
     if (
       !ticketData.results ||
