@@ -1,4 +1,4 @@
-import { enableCors } from "../lib/cors.js";
+import { enableCors } from "../../lib/cors.js";
 
 export default async function handler(req, res) {
 
