@@ -1,3 +1,6 @@
+import { hubspotRequest }
+from "../lib/hubspot.js";
+
 export default async function handler(req, res) {
 
   // CORS
@@ -30,37 +33,35 @@ export default async function handler(req, res) {
 
   try {
 
-    const ticketResponse = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/tickets/search",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`
-        },
-        body: JSON.stringify({
-          filterGroups: [
-            {
-              filters: [
-                {
-                  propertyName: "request_id",
-                  operator: "EQ",
-                  value: requestId
-                }
-              ]
-            }
-          ],
-          properties: [
-            "beschikbare_fotografen"
-          ],
-          limit: 1
-        })
-      }
-    );
+   const ticketData =
+  await hubspotRequest(
 
-    const ticketData =
-      await ticketResponse.json();
+    "/crm/v3/objects/tickets/search",
+
+    "POST",
+
+    {
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName: "request_id",
+              operator: "EQ",
+              value: requestId
+            }
+          ]
+        }
+      ],
+
+      properties: [
+        "beschikbare_fotografen"
+      ],
+
+      limit: 1
+
+    }
+
+  );
 
     if (
       !ticketData.results ||
