@@ -1,5 +1,6 @@
 import {
-  searchTickets
+  searchTickets,
+  getTicketAssociations
 } from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
@@ -91,18 +92,11 @@ const searchData =
       searchData.results[0].id;
 
     // Gekoppeld contact ophalen
-    const associationResponse = await fetch(
-      `https://api.hubapi.com/crm/v4/objects/tickets/${ticketId}/associations/contacts`,
-      {
-        headers: {
-          Authorization:
-            `Bearer ${process.env.HUBSPOT_TOKEN}`
-        }
-      }
-    );
-
-    const associationData =
-      await associationResponse.json();
+const associationData =
+  await getTicketAssociations(
+    ticketId,
+    "contacts"
+  );
 
     const contactId =
       associationData.results?.[0]?.toObjectId;
