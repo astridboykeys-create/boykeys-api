@@ -1,6 +1,7 @@
 import { getTravelInfo } from "../lib/googleRoutes.js";
 import { getBookings } from "../lib/hubspot.js";
 import { enableCors } from "../lib/cors.js";
+import { canSchedule } from "../lib/planner.js";
 
 import {
   findPreviousBooking,
@@ -126,6 +127,24 @@ const {
         new Date(a.start) -
         new Date(b.start)
     );
+
+    const plannerResult =
+  await canSchedule({
+
+    bookings,
+
+    requestedStart:
+      nieuweStart,
+
+    requestedEnd:
+      nieuweEinde
+
+  });
+
+console.log(
+  "PLANNER RESULT",
+  plannerResult
+);
 
 const previousBooking =
   findPreviousBooking(
