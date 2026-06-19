@@ -7,23 +7,6 @@ import {
   calculateFirstPossibleStart
 } from "../lib/planner.js";
 
-function addMinutes(date, minutes) {
-
-  return new Date(
-    date.getTime() +
-    minutes * 60 * 1000
-  );
-
-}
-
-function subtractMinutes(date, minutes) {
-
-  return new Date(
-    date.getTime() -
-    minutes * 60 * 1000
-  );
-
-}
 
 function hasOverlap(
   start1,
