@@ -1,4 +1,5 @@
 import { enableCors } from "../lib/cors.js";
+import { getWorkingHours } from "../lib/availability.js";
 
 export default async function handler(req, res) {
 
@@ -26,11 +27,40 @@ export default async function handler(req, res) {
 
   }
 
-  const times = [];
+  const workingHours =
+  getWorkingHours(date);
+
+if (!workingHours) {
+
+  return res.status(200).json({
+
+    photographer_id,
+
+    date,
+
+    duration,
+
+    times: []
+
+  });
+
+}
+
+const times = [];
+
+const startHour =
+  parseInt(
+    workingHours.start.split(":")[0]
+  );
+
+const endHour =
+  parseInt(
+    workingHours.end.split(":")[0]
+  );
 
 for (
-  let hour = 9;
-  hour < 17;
+  let hour = startHour;
+  hour < endHour;
   hour++
 ) {
 
