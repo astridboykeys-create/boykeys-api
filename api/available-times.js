@@ -26,18 +26,33 @@ export default async function handler(req, res) {
 
   }
 
-  return res.status(200).json({
+  const times = [];
 
-    photographer_id,
+for (
+  let hour = 9;
+  hour < 17;
+  hour++
+) {
 
-    date,
+  times.push(
+    `${String(hour).padStart(2, "0")}:00`
+  );
 
-    latitude,
+  times.push(
+    `${String(hour).padStart(2, "0")}:30`
+  );
 
-    longitude,
+}
 
-    duration
+return res.status(200).json({
 
-  });
+  photographer_id,
 
+  date,
+
+  duration,
+
+  times
+
+});
 }
