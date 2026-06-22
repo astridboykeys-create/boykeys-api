@@ -33,15 +33,16 @@ export default async function handler(req, res) {
 
     .from("photographer_availability")
 
-    .upsert({
-
-      photographer_id,
-
-      working_hours,
-
-      updated_at: new Date().toISOString()
-
-    })
+    .upsert(
+  {
+    photographer_id,
+    working_hours,
+    updated_at: new Date().toISOString()
+  },
+  {
+    onConflict: "photographer_id"
+  }
+)
 
     .select();
 
