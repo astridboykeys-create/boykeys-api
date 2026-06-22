@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase.js";
 export default async function handler(req, res) {
 
   if (enableCors(req, res)) return;
-
+ 
   const {
     photographer_id
   } = req.query;
