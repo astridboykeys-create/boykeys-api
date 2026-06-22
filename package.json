@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@supabase/supabase-js": "^2.53.0",
     "googleapis": "^150.0.1"
   }
 }
