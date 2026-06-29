@@ -1,54 +1,79 @@
 import { enableCors } from "../lib/cors.js";
-import { supabase } from "../lib/supabase.js";
+import {
+    getAvailability,
+    saveAvailability
+} from "../lib/availability.js";
 
 export default async function handler(req, res) {
 
-  if (enableCors(req, res)) return;
- 
-  const {
-    photographer_id
-  } = req.query;
+    if (enableCors(req, res)) return;
 
-  if (!photographer_id) {
+    try {
 
-    return res.status(400).json({
-      success: false,
-      error: "photographer_id is verplicht"
-    });
+        if (req.method === "GET") {
 
-  }
+            const { photographer_id } = req.query;
 
-  const { data, error } = await supabase
+            if (!photographer_id) {
 
-    .from("photographer_availability")
+                return res.status(400).json({
+                    success: false,
+                    error: "photographer_id is verplicht"
+                });
 
-    .select("*")
+            }
 
-    .eq(
-      "photographer_id",
-      photographer_id
-    )
+            const data = await getAvailability(photographer_id);
 
-    .single();
+            return res.status(200).json({
+                success: true,
+                data
+            });
 
-  if (error) {
+        }
 
-    return res.status(500).json({
+        if (req.method === "POST") {
 
-      success: false,
+            const {
+                photographer_id,
+                working_hours
+            } = req.body;
 
-      error: error.message
+            if (!photographer_id || !working_hours) {
 
-    });
+                return res.status(400).json({
+                    success: false,
+                    error: "photographer_id en working_hours zijn verplicht"
+                });
 
-  }
+            }
 
-  return res.status(200).json({
+            const data = await saveAvailability(
+                photographer_id,
+                working_hours
+            );
 
-    success: true,
+            return res.status(200).json({
+                success: true,
+                data
+            });
 
-    data
+        }
 
-  });
+        return res.status(405).json({
+            success: false,
+            error: "Method not allowed"
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+
+    }
 
 }
