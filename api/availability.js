@@ -12,13 +12,71 @@ export default async function handler(req, res) {
 
         if (req.method === "GET") {
 
-            return handleGet(req, res);
+            const { photographer_id } = req.query;
+
+            if (!photographer_id) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "photographer_id is verplicht"
+                });
+
+            }
+
+            const data =
+                await getAvailability(
+                    photographer_id
+                );
+
+            return res.status(200).json({
+
+                success: true,
+
+                data
+
+            });
 
         }
 
         if (req.method === "POST") {
 
-            return handlePost(req, res);
+            const {
+
+                photographer_id,
+
+                working_hours
+
+            } = req.body;
+
+            if (
+                !photographer_id ||
+                !working_hours
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    error:
+                        "photographer_id en working_hours zijn verplicht"
+
+                });
+
+            }
+
+            const data =
+                await saveAvailability(
+                    photographer_id,
+                    working_hours
+                );
+
+            return res.status(200).json({
+
+                success: true,
+
+                data
+
+            });
 
         }
 
