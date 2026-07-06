@@ -1,42 +1,7 @@
 import {
   getTicket,
-  getPhotographers,
-  updateTicket
+  getPhotographers
 } from "../lib/hubspot.js";
-
-function distanceKm(
-  lat1,
-  lon1,
-  lat2,
-  lon2
-) {
-  const R = 6371;
-
-  const dLat =
-    (lat2 - lat1) *
-    Math.PI / 180;
-
-  const dLon =
-    (lon2 - lon1) *
-    Math.PI / 180;
-
-  const a =
-    Math.sin(dLat / 2) *
-      Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) *
-      Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c =
-    2 *
-    Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a)
-    );
-
-  return R * c;
-}
 
 export default async function handler(req, res) {
 
@@ -45,37 +10,31 @@ export default async function handler(req, res) {
     const { ticketId } = req.query;
 
     if (!ticketId) {
+
       return res.status(400).json({
+        success: false,
         error: "ticketId ontbreekt"
       });
+
     }
 
     // ==========================
     // Ticket ophalen
     // ==========================
 
-const ticketData =
-  await getTicket(
-    ticketId,
-    [
-      "latitude",
-      "longitude",
-      "diensten"
-    ]
-  );
+    const ticketData = await getTicket(
+      ticketId,
+      [
+        "adres",
+        "diensten"
+      ]
+    );
 
-    const woningLat =
-      parseFloat(
-        ticketData.properties.latitude
-      );
-
-    const woningLng =
-      parseFloat(
-        ticketData.properties.longitude
-      );
+    const adres =
+      ticketData.properties.adres;
 
     const gevraagdeDiensten =
-      (ticketData.properties?.diensten || "")
+      (ticketData.properties.diensten || "")
         .split(";")
         .filter(Boolean);
 
@@ -83,19 +42,18 @@ const ticketData =
     // Fotografen ophalen
     // ==========================
 
-const contactsData =
-  await getPhotographers();
+    const contactsData =
+      await getPhotographers();
 
     const fotografen =
       contactsData.results
 
-        // GPS verplicht
+        // Alleen fotografen met een thuislocatie
         .filter(c =>
-          c.properties.latitude &&
-          c.properties.longitude
+          c.properties.thuislocatie
         )
 
-        // Dienstenfilter
+        // Diensten filteren
         .filter(c => {
 
           const diensten =
@@ -110,103 +68,27 @@ const contactsData =
 
         })
 
-        // Afstand berekenen
-        .map(c => {
+        // Basisgegevens teruggeven
+        .map(c => ({
 
-          const afstandKm =
-            distanceKm(
-              woningLat,
-              woningLng,
-              parseFloat(
-                c.properties.latitude
-              ),
-              parseFloat(
-                c.properties.longitude
-              )
-            );
+          id: c.id,
 
-          return {
+          firstname:
+            c.properties.firstname,
 
-            id: c.id,
+          lastname:
+            c.properties.lastname,
 
-            firstname:
-              c.properties.firstname,
+          diensten:
+            c.properties.diensten,
 
-            lastname:
-              c.properties.lastname,
+          thuislocatie:
+            c.properties.thuislocatie,
 
-            diensten:
-              c.properties.diensten,
+          max_reistijd_minuten:
+            c.properties.max_reistijd_minuten
 
-            latitude:
-              c.properties.latitude,
-
-            longitude:
-              c.properties.longitude,
-
-            max_reistijd_minuten:
-              c.properties.max_reistijd_minuten,
-
-            max_reisafstand_km:
-              c.properties.max_reisafstand_km,
-
-            afstand_km:
-              Math.round(
-                afstandKm * 10
-              ) / 10
-
-          };
-
-        })
-
-        // Reisafstand filter
-        .filter(f =>
-          f.afstand_km <=
-          Number(
-            f.max_reisafstand_km || 999
-          )
-        )
-
-        // Sorteer dichtstbij eerst
-        .sort(
-          (a, b) =>
-            a.afstand_km -
-            b.afstand_km
-        );
-
-    // ==========================
-    // Beschikbare fotografen
-    // opslaan op ticket
-    // ==========================
-
-    const beschikbareFotografen =
-      fotografen
-        .map(f => f.id)
-        .join(";");
-
-    console.log(
-      "Beschikbare fotografen:",
-      beschikbareFotografen
-    );
-
-    try {
-
-  await updateTicket(
-    ticketId,
-    {
-      beschikbare_fotografen:
-        beschikbareFotografen
-    }
-  );
-
-} catch (error) {
-
-  console.error(
-    "HubSpot update fout:",
-    error.message
-  );
-
-}
+        }));
 
     // ==========================
     // Response
@@ -214,23 +96,11 @@ const contactsData =
 
     return res.status(200).json({
 
-      woning: {
+      success: true,
 
-        latitude:
-          ticketData.properties.latitude,
+      adres,
 
-        longitude:
-          ticketData.properties.longitude,
-
-        diensten:
-          ticketData.properties.diensten
-
-      },
-
-      beschikbare_fotografen:
-        beschikbareFotografen,
-
-      fotografen
+      photographers: fotografen
 
     });
 
@@ -239,7 +109,11 @@ const contactsData =
     console.error(error);
 
     return res.status(500).json({
+
+      success: false,
+
       error: error.message
+
     });
 
   }
