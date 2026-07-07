@@ -154,16 +154,38 @@ export default async function handler(req, res) {
     fotograaf.id
   );
 
-              const slots =
-                getAvailableSlots(
+              const unavailablePeriods = [
 
-                  availability,
+  ...blocks.map(block => ({
 
-                  blocks,
+    start: block.start_at,
 
-                  searchDate
+    end: block.end_at
 
-                );
+  })),
+
+  ...bookings.results.map(ticket => ({
+
+    start:
+      ticket.properties.afspraak_start,
+
+    end:
+      ticket.properties.afspraak_einde
+
+  }))
+
+];
+
+const slots =
+  getAvailableSlots(
+
+    availability,
+
+    unavailablePeriods,
+
+    searchDate
+
+  );
 
               return {
 
