@@ -107,6 +107,10 @@ const blocks =
 
   distance_km: travel.distance_km,
 
+  availability,
+
+  blocks,
+
   slots: []
 
 };
