@@ -1,106 +1,46 @@
-import {
-  getTicket,
-  getPhotographers
-} from "../lib/hubspot.js";
+import { getPhotographers } from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
 
   try {
 
-    const { ticketId } = req.query;
+    const {
+      latitude,
+      longitude,
+      diensten = []
+    } = req.body;
 
-    if (!ticketId) {
+    if (!latitude || !longitude) {
 
       return res.status(400).json({
         success: false,
-        error: "ticketId ontbreekt"
+        error: "Latitude en longitude ontbreken."
       });
 
     }
 
-    // ==========================
-    // Ticket ophalen
-    // ==========================
-
-    const ticketData = await getTicket(
-      ticketId,
-      [
-        "adres",
-        "diensten"
-      ]
-    );
-
-    const adres =
-      ticketData.properties.adres;
-
-    const gevraagdeDiensten =
-      (ticketData.properties.diensten || "")
-        .split(";")
-        .filter(Boolean);
-
-    // ==========================
-    // Fotografen ophalen
-    // ==========================
-
-    const contactsData =
+    const fotografen =
       await getPhotographers();
 
-    const fotografen =
-      contactsData.results
+    const matches =
+      fotografen.filter(f => {
 
-        // Alleen fotografen met een thuislocatie
-        .filter(c =>
-          c.properties.thuislocatie
-        )
+        const beschikbareDiensten =
+          (f.diensten || "")
+            .split(";")
+            .filter(Boolean);
 
-        // Diensten filteren
-        .filter(c => {
+        return diensten.every(d =>
+          beschikbareDiensten.includes(d)
+        );
 
-          const diensten =
-            (c.properties.diensten || "")
-              .split(";")
-              .filter(Boolean);
-
-          return gevraagdeDiensten.every(
-            dienst =>
-              diensten.includes(dienst)
-          );
-
-        })
-
-        // Basisgegevens teruggeven
-        .map(c => ({
-
-          id: c.id,
-
-          firstname:
-            c.properties.firstname,
-
-          lastname:
-            c.properties.lastname,
-
-          diensten:
-            c.properties.diensten,
-
-          thuislocatie:
-            c.properties.thuislocatie,
-
-          max_reistijd_minuten:
-            c.properties.max_reistijd_minuten
-
-        }));
-
-    // ==========================
-    // Response
-    // ==========================
+      });
 
     return res.status(200).json({
 
       success: true,
 
-      adres,
-
-      photographers: fotografen
+      photographers: matches
 
     });
 
