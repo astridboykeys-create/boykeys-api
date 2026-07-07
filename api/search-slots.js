@@ -41,10 +41,7 @@ export default async function handler(req, res) {
     const fotografen =
       await getPhotographers();
 
-    return res.status(200).json({
-  success: true,
-  fotografen
-});
+    
 
     // ==========================
     // Filter op diensten
