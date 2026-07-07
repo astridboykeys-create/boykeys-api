@@ -5,6 +5,9 @@ import {
   getBlocks
 } from "../lib/supabase.js";
 import { enableCors } from "../lib/cors.js";
+import {
+  getAvailableSlots
+} from "../lib/planner.js";
 
 export default async function handler(req, res) {
 
@@ -93,6 +96,13 @@ const blocks =
     fotograaf.id
   );
 
+            const slots =
+  getAvailableSlots(
+    availability,
+    blocks,
+    new Date()
+  );
+
             if (
               travel.travel_minutes >
               fotograaf.max_reistijd_minuten
@@ -118,7 +128,7 @@ const blocks =
 
   blocks,
 
-  slots: []
+  slots
 
 };
 
