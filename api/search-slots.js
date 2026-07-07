@@ -3,6 +3,13 @@ import { getTravelInfo } from "../lib/googleRoutes.js";
 
 export default async function handler(req, res) {
 
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed"
+    });
+  }
+
   try {
 
     const {
@@ -12,85 +19,131 @@ export default async function handler(req, res) {
     } = req.body;
 
     if (!latitude || !longitude) {
-
       return res.status(400).json({
         success: false,
         error: "Latitude en longitude ontbreken."
       });
-
     }
+
+    // ==========================
+    // Fotografen ophalen
+    // ==========================
 
     const fotografen =
       await getPhotographers();
 
-    const matches = [];
+    // ==========================
+    // Filter op diensten
+    // ==========================
 
-for (const fotograaf of fotografen) {
+    const geschikteFotografen =
+      fotografen.filter(fotograaf => {
 
-  const beschikbareDiensten =
-    (fotograaf.diensten || "")
-      .split(";")
-      .filter(Boolean);
+        const beschikbareDiensten =
+          (fotograaf.diensten || "")
+            .split(";")
+            .filter(Boolean);
 
-  if (
-    !diensten.every(d =>
-      beschikbareDiensten.includes(d)
-    )
-  ) {
-    continue;
-  }
+        return diensten.every(dienst =>
+          beschikbareDiensten.includes(dienst)
+        );
 
-  const travel =
-    await getTravelInfo(
+      });
 
-      fotograaf.latitude,
-      fotograaf.longitude,
+    // ==========================
+    // Reistijden berekenen
+    // ==========================
 
-      latitude,
-      longitude
+    const resultaten =
+      await Promise.all(
 
-    );
+        geschikteFotografen.map(async (fotograaf) => {
 
-  if (
-    travel.travel_minutes >
-    fotograaf.max_reistijd_minuten
-  ) {
-    continue;
-  }
+          try {
 
-  matches.push({
+            const travel =
+              await getTravelInfo(
 
-    ...fotograaf,
+                fotograaf.latitude,
+                fotograaf.longitude,
 
-    travel_minutes:
-      travel.travel_minutes,
+                latitude,
+                longitude
 
-    distance_km:
-      travel.distance_km,
+              );
 
-    score:
-      100 - travel.travel_minutes,
+            if (
+              travel.travel_minutes >
+              fotograaf.max_reistijd_minuten
+            ) {
+              return null;
+            }
 
-    slots: []
+            return {
 
-  });
+              id:
+                fotograaf.id,
 
-}
+              firstname:
+                fotograaf.firstname,
 
-    matches.sort(
+              lastname:
+                fotograaf.lastname,
 
-  (a, b) =>
+              diensten:
+                fotograaf.diensten,
 
-    a.travel_minutes -
-    b.travel_minutes
+              travel_minutes:
+                travel.travel_minutes,
 
-);
+              distance_km:
+                travel.distance_km,
+
+              slots: []
+
+            };
+
+          } catch (error) {
+
+            console.error(
+              `Route fout voor fotograaf ${fotograaf.id}:`,
+              error.message
+            );
+
+            return null;
+
+          }
+
+        })
+
+      );
+
+    // ==========================
+    // Null verwijderen
+    // ==========================
+
+    const matches =
+      resultaten
+        .filter(Boolean)
+        .sort(
+
+          (a, b) =>
+
+            a.travel_minutes -
+            b.travel_minutes
+
+        );
+
+    // ==========================
+    // Response
+    // ==========================
 
     return res.status(200).json({
 
       success: true,
 
-      photographers: matches
+      photographers:
+        matches
 
     });
 
