@@ -1,12 +1,11 @@
 import { enableCors } from "../lib/cors.js";
 
-import { getPhotographers } from "../lib/hubspot.js";
-
-import { getTravelInfo } from "../lib/googleRoutes.js";
-
 import {
+  getPhotographers,
   getBookings
 } from "../lib/hubspot.js";
+
+import { getTravelInfo } from "../lib/googleRoutes.js";
 
 import {
   getAvailability,
@@ -82,11 +81,8 @@ export default async function handler(req, res) {
       fotografen.filter(fotograaf => {
 
         const beschikbareDiensten =
-
           (fotograaf.diensten || "")
-
             .split(";")
-
             .filter(Boolean);
 
         return diensten.every(
@@ -114,6 +110,10 @@ export default async function handler(req, res) {
 
             try {
 
+              // ==========================
+              // Reistijd
+              // ==========================
+
               const travel =
                 await getTravelInfo(
 
@@ -139,53 +139,93 @@ export default async function handler(req, res) {
 
               }
 
+              // ==========================
+              // Availability
+              // ==========================
+
               const availability =
                 await getAvailability(
                   fotograaf.id
                 );
+
+              // ==========================
+              // Blokkades
+              // ==========================
 
               const blocks =
                 await getBlocks(
                   fotograaf.id
                 );
 
+              // ==========================
+              // Boekingen
+              // ==========================
+
               const bookings =
-  await getBookings(
-    fotograaf.id
-  );
+                await getBookings(
+                  fotograaf.id
+                );
+
+              // ==========================
+              // Niet beschikbare periodes
+              // ==========================
 
               const unavailablePeriods = [
 
-  ...blocks.map(block => ({
+                ...blocks.map(block => ({
 
-    start: block.start_at,
+                  start:
+                    block.start_at,
 
-    end: block.end_at
+                  end:
+                    block.end_at
 
-  })),
+                })),
 
-  ...bookings.results.map(ticket => ({
+                ...(bookings.results || [])
 
-    start:
-      ticket.properties.afspraak_start,
+                  .filter(ticket =>
 
-    end:
-      ticket.properties.afspraak_einde
+                    ticket.properties
+                      .afspraak_start &&
 
-  }))
+                    ticket.properties
+                      .afspraak_einde
 
-];
+                  )
 
-const slots =
-  getAvailableSlots(
+                  .map(ticket => ({
 
-    availability,
+                    start:
+                      ticket.properties
+                        .afspraak_start,
 
-    unavailablePeriods,
+                    end:
+                      ticket.properties
+                        .afspraak_einde
 
-    searchDate
+                  }))
 
-  );
+              ];
+
+              // ==========================
+              // Planner
+              // ==========================
+
+              const slots =
+                getAvailableSlots(
+
+                  availability,
+
+                  unavailablePeriods,
+
+                  searchDate
+
+                );
+
+              // ==========================
+              // Resultaat
+              // ==========================
 
               return {
 
@@ -211,6 +251,9 @@ const slots =
 
                 blocks,
 
+                bookings:
+                  bookings.results,
+
                 slots
 
               };
@@ -219,15 +262,19 @@ const slots =
 
             catch (error) {
 
-              console.error(
+              // Tijdelijk debuggen
+              return {
 
-                `Fout bij fotograaf ${fotograaf.id}:`,
+                id:
+                  fotograaf.id,
 
-                error.message
+                firstname:
+                  fotograaf.firstname,
 
-              );
+                error:
+                  error.message
 
-              return null;
+              };
 
             }
 
@@ -238,7 +285,7 @@ const slots =
       );
 
     // ==========================
-    // Resultaten sorteren
+    // Resultaten
     // ==========================
 
     const matches =
@@ -250,15 +297,11 @@ const slots =
 
           (a, b) =>
 
-            a.travel_minutes -
+            (a.travel_minutes || 9999) -
 
-            b.travel_minutes
+            (b.travel_minutes || 9999)
 
         );
-
-    // ==========================
-    // Response
-    // ==========================
 
     return res.status(200).json({
 
