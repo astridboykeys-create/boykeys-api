@@ -5,6 +5,10 @@ import { getPhotographers } from "../lib/hubspot.js";
 import { getTravelInfo } from "../lib/googleRoutes.js";
 
 import {
+  getBookings
+} from "../lib/hubspot.js";
+
+import {
   getAvailability,
   getBlocks
 } from "../lib/supabase.js";
@@ -144,6 +148,11 @@ export default async function handler(req, res) {
                 await getBlocks(
                   fotograaf.id
                 );
+
+              const bookings =
+  await getBookings(
+    fotograaf.id
+  );
 
               const slots =
                 getAvailableSlots(
