@@ -118,9 +118,9 @@ const blocks =
           } catch (error) {
 
             console.error(
-              `Route fout voor fotograaf ${fotograaf.id}:`,
-              error.message
-            );
+  `Fout bij fotograaf ${fotograaf.id}:`,
+  error.message
+);
 
             return null;
 
