@@ -1,5 +1,9 @@
 import { getPhotographers } from "../lib/hubspot.js";
 import { getTravelInfo } from "../lib/googleRoutes.js";
+import {
+  getAvailability,
+  getBlocks
+} from "../lib/supabase.js";
 
 export default async function handler(req, res) {
 
@@ -72,6 +76,16 @@ export default async function handler(req, res) {
 
               );
 
+             const availability =
+  await getAvailability(
+    fotograaf.id
+  );
+
+const blocks =
+  await getBlocks(
+    fotograaf.id
+  );
+
             if (
               travel.travel_minutes >
               fotograaf.max_reistijd_minuten
@@ -81,27 +95,21 @@ export default async function handler(req, res) {
 
             return {
 
-              id:
-                fotograaf.id,
+  id: fotograaf.id,
 
-              firstname:
-                fotograaf.firstname,
+  firstname: fotograaf.firstname,
 
-              lastname:
-                fotograaf.lastname,
+  lastname: fotograaf.lastname,
 
-              diensten:
-                fotograaf.diensten,
+  diensten: fotograaf.diensten,
 
-              travel_minutes:
-                travel.travel_minutes,
+  travel_minutes: travel.travel_minutes,
 
-              distance_km:
-                travel.distance_km,
+  distance_km: travel.distance_km,
 
-              slots: []
+  slots: []
 
-            };
+};
 
           } catch (error) {
 
@@ -115,6 +123,8 @@ export default async function handler(req, res) {
           }
 
         })
+
+       
 
       );
 
