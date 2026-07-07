@@ -1,41 +1,67 @@
+import { enableCors } from "../lib/cors.js";
+
 import { getPhotographers } from "../lib/hubspot.js";
+
 import { getTravelInfo } from "../lib/googleRoutes.js";
+
 import {
   getAvailability,
   getBlocks
 } from "../lib/supabase.js";
-import { enableCors } from "../lib/cors.js";
+
 import {
   getAvailableSlots
 } from "../lib/planner.js";
 
 export default async function handler(req, res) {
 
-    if (enableCors(req, res)) {
+  if (enableCors(req, res)) {
     return;
   }
 
   if (req.method !== "POST") {
+
     return res.status(405).json({
+
       success: false,
+
       error: "Method not allowed"
+
     });
+
   }
 
   try {
 
     const {
+
       latitude,
+
       longitude,
-      diensten = []
+
+      diensten = [],
+
+      date
+
     } = req.body;
 
     if (!latitude || !longitude) {
+
       return res.status(400).json({
+
         success: false,
-        error: "Latitude en longitude ontbreken."
+
+        error:
+          "Latitude en longitude ontbreken."
+
       });
+
     }
+
+    const searchDate =
+      date
+        ? new Date(date)
+        : new Date();
 
     // ==========================
     // Fotografen ophalen
@@ -44,123 +70,157 @@ export default async function handler(req, res) {
     const fotografen =
       await getPhotographers();
 
-    
-
     // ==========================
-    // Filter op diensten
+    // Diensten filteren
     // ==========================
 
     const geschikteFotografen =
       fotografen.filter(fotograaf => {
 
         const beschikbareDiensten =
+
           (fotograaf.diensten || "")
+
             .split(";")
+
             .filter(Boolean);
 
-        return diensten.every(dienst =>
-          beschikbareDiensten.includes(dienst)
+        return diensten.every(
+
+          dienst =>
+
+            beschikbareDiensten.includes(
+              dienst
+            )
+
         );
 
       });
 
     // ==========================
-    // Reistijden berekenen
+    // Matching
     // ==========================
 
     const resultaten =
       await Promise.all(
 
-        geschikteFotografen.map(async (fotograaf) => {
+        geschikteFotografen.map(
 
-          try {
+          async (fotograaf) => {
 
-            const travel =
-              await getTravelInfo(
+            try {
 
-                fotograaf.latitude,
-                fotograaf.longitude,
+              const travel =
+                await getTravelInfo(
 
-                latitude,
-                longitude
+                  fotograaf.latitude,
+
+                  fotograaf.longitude,
+
+                  latitude,
+
+                  longitude
+
+                );
+
+              if (
+
+                travel.travel_minutes >
+
+                fotograaf.max_reistijd_minuten
+
+              ) {
+
+                return null;
+
+              }
+
+              const availability =
+                await getAvailability(
+                  fotograaf.id
+                );
+
+              const blocks =
+                await getBlocks(
+                  fotograaf.id
+                );
+
+              const slots =
+                getAvailableSlots(
+
+                  availability,
+
+                  blocks,
+
+                  searchDate
+
+                );
+
+              return {
+
+                id:
+                  fotograaf.id,
+
+                firstname:
+                  fotograaf.firstname,
+
+                lastname:
+                  fotograaf.lastname,
+
+                diensten:
+                  fotograaf.diensten,
+
+                travel_minutes:
+                  travel.travel_minutes,
+
+                distance_km:
+                  travel.distance_km,
+
+                availability,
+
+                blocks,
+
+                slots
+
+              };
+
+            }
+
+            catch (error) {
+
+              console.error(
+
+                `Fout bij fotograaf ${fotograaf.id}:`,
+
+                error.message
 
               );
 
-             const availability =
-  await getAvailability(
-    fotograaf.id
-  );
-
-const blocks =
-  await getBlocks(
-    fotograaf.id
-  );
-
-            const slots =
-  getAvailableSlots(
-    availability,
-    blocks,
-    new Date()
-  );
-
-            if (
-              travel.travel_minutes >
-              fotograaf.max_reistijd_minuten
-            ) {
               return null;
+
             }
-
-            return {
-
-  id: fotograaf.id,
-
-  firstname: fotograaf.firstname,
-
-  lastname: fotograaf.lastname,
-
-  diensten: fotograaf.diensten,
-
-  travel_minutes: travel.travel_minutes,
-
-  distance_km: travel.distance_km,
-
-  availability,
-
-  blocks,
-
-  slots
-
-};
-
-          } catch (error) {
-
-            console.error(
-  `Fout bij fotograaf ${fotograaf.id}:`,
-  error.message
-);
-
-            return null;
 
           }
 
-        })
-
-       
+        )
 
       );
 
     // ==========================
-    // Null verwijderen
+    // Resultaten sorteren
     // ==========================
 
     const matches =
       resultaten
+
         .filter(Boolean)
+
         .sort(
 
           (a, b) =>
 
             a.travel_minutes -
+
             b.travel_minutes
 
         );
@@ -178,7 +238,9 @@ const blocks =
 
     });
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     console.error(error);
 
@@ -186,7 +248,8 @@ const blocks =
 
       success: false,
 
-      error: error.message
+      error:
+        error.message
 
     });
 
