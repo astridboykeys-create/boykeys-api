@@ -120,6 +120,12 @@ console.log(fotografen);
               const travel =
                 await getTravelInfo(
 
+                  console.log(
+  "Controle:",
+  fotograaf.firstname,
+  fotograaf.lastname
+);
+
                   fotograaf.latitude,
 
                   fotograaf.longitude,
