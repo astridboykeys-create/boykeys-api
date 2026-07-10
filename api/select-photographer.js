@@ -49,14 +49,11 @@ export default async function handler(req, res) {
     console.log(req.body);
 
     if (
-      !firstname ||
-      !lastname ||
-      !email ||
-      !photographer_id ||
-      !start ||
-      !end
-    ) {
-
+  !email ||
+  !photographer_id ||
+  !start ||
+  !end
+)
       return res.status(400).json({
         success: false,
         message: "Missing required fields"
