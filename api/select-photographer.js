@@ -5,11 +5,11 @@ import {
   createContact,
   createTicket,
   associateTicketWithContact
-} from "../lib/hubspot";
+} from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
 
-   if (enableCors(req, res)) {
+  if (enableCors(req, res)) {
     return;
   }
 
@@ -35,12 +35,18 @@ export default async function handler(req, res) {
       diensten,
       opmerkingen,
 
+      latitude,
+      longitude,
+
       photographer_id,
 
       start,
       end
 
     } = req.body;
+
+    console.log("=== Nieuwe boeking ===");
+    console.log(req.body);
 
     if (
       !firstname ||
@@ -58,60 +64,91 @@ export default async function handler(req, res) {
 
     }
 
+    // =====================================
     // Contact zoeken
+    // =====================================
+
     let contact =
       await findContactByEmail(email);
 
-    // Anders aanmaken
+    // =====================================
+    // Contact aanmaken indien nodig
+    // =====================================
+
     if (!contact) {
+
+      console.log("Nieuw contact aanmaken");
 
       contact =
         await createContact({
 
           firstname,
-
           lastname,
-
           email,
-
           phone
 
         });
 
+    } else {
+
+      console.log("Bestaand contact gevonden");
+
     }
 
+    // =====================================
     // Ticket aanmaken
+    // =====================================
+
+    console.log("Ticket aanmaken");
+
     const ticket =
-  await createTicket({
+      await createTicket({
 
-    hs_ticket_name:
-      address,
+        hs_ticket_name:
+          address,
 
-    adres:
-      address,
+        adres:
+          address,
 
-    diensten,
+        diensten,
 
-    opmerkingen,
+        opmerkingen,
 
-    selected_photographer_id:
-      photographer_id,
+        latitude,
+        longitude,
 
-    afspraak_start:
-      start,
+        selected_photographer_id:
+          photographer_id,
 
-    afspraak_einde:
-      end
+        afspraak_start:
+          start,
 
-  });
+        afspraak_einde:
+          end
 
-    // Contact koppelen
+      });
+
+    // =====================================
+    // Ticket koppelen aan contact
+    // =====================================
+
+    console.log("Ticket koppelen");
+
     await associateTicketWithContact(
+
       ticket.id,
+
       contact.id
+
     );
 
-    return res.json({
+    // =====================================
+    // Klaar
+    // =====================================
+
+    console.log("Boeking succesvol");
+
+    return res.status(200).json({
 
       success: true,
 
@@ -123,16 +160,18 @@ export default async function handler(req, res) {
 
     });
 
-  } catch (err) {
+  }
 
-    console.error(err);
+  catch (error) {
+
+    console.error(error);
 
     return res.status(500).json({
 
       success: false,
 
       message:
-        err.message
+        error.message
 
     });
 
