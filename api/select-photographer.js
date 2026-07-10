@@ -77,14 +77,17 @@ export default async function handler(req, res) {
       console.log("Nieuw contact aanmaken");
 
       contact =
-        await createContact({
+  await createContact({
 
-          firstname,
-          lastname,
-          email,
-          phone
+    email,
 
-        });
+    firstname: firstname || "",
+
+    lastname: lastname || "",
+
+    phone
+
+  });
 
     } else {
 
