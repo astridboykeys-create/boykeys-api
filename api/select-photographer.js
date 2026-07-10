@@ -65,31 +65,16 @@ export default async function handler(req, res) {
     // Contact zoeken
     // =====================================
 
-    let contact =
-      await findContactByEmail(email);
+  const contact = await findContactByEmail(email);
 
-    // =====================================
-    // Contact aanmaken indien nodig
-    // =====================================
+if (!contact) {
 
-    if (!contact) {
-
-      console.log("Nieuw contact aanmaken");
-
-      contact =
-  await createContact({
-
-    email,
-
-    firstname: firstname || "",
-
-    lastname: lastname || "",
-
-    phone
-
+  return res.status(404).json({
+    success: false,
+    message: "Ingelogde makelaar niet gevonden."
   });
 
-    } else {
+} else {
 
       console.log("Bestaand contact gevonden");
 
