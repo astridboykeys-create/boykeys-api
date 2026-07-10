@@ -9,7 +9,9 @@ import {
 
 export default async function handler(req, res) {
 
-  cors(req, res);
+   if (enableCors(req, res)) {
+    return;
+  }
 
   if (req.method !== "POST") {
 
