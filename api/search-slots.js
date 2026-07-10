@@ -61,9 +61,6 @@ export default async function handler(req, res) {
     const fotografen =
       await getPhotographers();
 
-    console.log("=== ALLE FOTOGRAFEN ===");
-    console.log(fotografen);
-
     // ==========================================
     // Diensten filteren
     // ==========================================
@@ -77,14 +74,16 @@ export default async function handler(req, res) {
             .filter(Boolean);
 
         return diensten.every(
+
           dienst =>
-            beschikbareDiensten.includes(dienst)
+
+            beschikbareDiensten.includes(
+              dienst
+            )
+
         );
 
       });
-
-    console.log("=== NA DIENSTENFILTER ===");
-    console.log(geschikteFotografen);
 
     // ==========================================
     // Matching
@@ -93,190 +92,176 @@ export default async function handler(req, res) {
     const resultaten =
       await Promise.all(
 
-        geschikteFotografen.map(async fotograaf => {
+        geschikteFotografen.map(
 
-          try {
+          async (fotograaf) => {
 
-            console.log(
-              "Controle:",
-              fotograaf.firstname,
-              fotograaf.lastname
-            );
+            try {
 
-            // ======================================
-            // Reistijd
-            // ======================================
+              // ======================================
+              // Reistijd
+              // ======================================
 
-            const travel =
-              await getTravelInfo(
+              const travel =
+                await getTravelInfo(
 
-                fotograaf.latitude,
+                  fotograaf.latitude,
 
-                fotograaf.longitude,
+                  fotograaf.longitude,
 
-                latitude,
+                  latitude,
 
-                longitude
+                  longitude
 
-              );
+                );
 
-            console.log(
-              "Reistijd:",
-              travel.travel_minutes,
-              "Max:",
-              fotograaf.max_reistijd_minuten
-            );
+              if (
 
-            if (
-              travel.travel_minutes >
-              fotograaf.max_reistijd_minuten
-            ) {
+                travel.travel_minutes >
 
-              console.log(
-                "Afgevallen wegens reistijd"
+                fotograaf.max_reistijd_minuten
+
+              ) {
+
+                return null;
+
+              }
+
+              // ======================================
+              // Availability
+              // ======================================
+
+              const availability =
+                await getAvailability(
+                  fotograaf.id
+                );
+
+              // ======================================
+              // Blocks
+              // ======================================
+
+              const blocks =
+                await getBlocks(
+                  fotograaf.id
+                );
+
+              // ======================================
+              // HubSpot boekingen
+              // ======================================
+
+              const bookings =
+                await getBookings(
+                  fotograaf.id
+                );
+
+              // ======================================
+              // Niet beschikbare periodes
+              // ======================================
+
+              const unavailablePeriods = [
+
+                ...blocks.map(block => ({
+
+                  start:
+                    block.start_at,
+
+                  end:
+                    block.end_at
+
+                })),
+
+                ...(bookings.results || [])
+
+                  .filter(ticket =>
+
+                    ticket.properties.afspraak_start &&
+
+                    ticket.properties.afspraak_einde
+
+                  )
+
+                  .map(ticket => ({
+
+                    start:
+                      ticket.properties.afspraak_start,
+
+                    end:
+                      ticket.properties.afspraak_einde
+
+                  }))
+
+              ];
+
+              // ======================================
+              // Beschikbare slots
+              // ======================================
+
+              const slots =
+                getAvailableSlots(
+
+                  availability,
+
+                  unavailablePeriods,
+
+                  searchDate
+
+                );
+
+              return {
+
+                id:
+                  fotograaf.id,
+
+                firstname:
+                  fotograaf.firstname,
+
+                lastname:
+                  fotograaf.lastname,
+
+                diensten:
+                  fotograaf.diensten,
+
+                travel_minutes:
+                  travel.travel_minutes,
+
+                distance_km:
+                  travel.distance_km,
+
+                availability,
+
+                blocks,
+
+                bookings:
+                  bookings.results,
+
+                slots
+
+              };
+
+            }
+
+            catch (error) {
+
+              console.error(
+
+                `Fout bij fotograaf ${fotograaf.firstname} ${fotograaf.lastname}:`,
+
+                error
+
               );
 
               return null;
 
             }
 
-            // ======================================
-            // Availability
-            // ======================================
-
-            const availability =
-              await getAvailability(
-                fotograaf.id
-              );
-
-            // ======================================
-            // Blocks
-            // ======================================
-
-            const blocks =
-              await getBlocks(
-                fotograaf.id
-              );
-
-            // ======================================
-            // HubSpot boekingen
-            // ======================================
-
-            const bookings =
-              await getBookings(
-                fotograaf.id
-              );
-
-            // ======================================
-            // Niet beschikbare periodes
-            // ======================================
-
-            const unavailablePeriods = [
-
-              ...blocks.map(block => ({
-
-                start:
-                  block.start_at,
-
-                end:
-                  block.end_at
-
-              })),
-
-              ...(bookings.results || [])
-
-                .filter(ticket =>
-
-                  ticket.properties.afspraak_start &&
-
-                  ticket.properties.afspraak_einde
-
-                )
-
-                .map(ticket => ({
-
-                  start:
-                    ticket.properties.afspraak_start,
-
-                  end:
-                    ticket.properties.afspraak_einde
-
-                }))
-
-            ];
-
-            // ======================================
-            // Slots
-            // ======================================
-
-            const slots =
-              getAvailableSlots(
-
-                availability,
-
-                unavailablePeriods,
-
-                searchDate
-
-              );
-
-            // ======================================
-            // Resultaat
-            // ======================================
-
-            return {
-
-              id:
-                fotograaf.id,
-
-              firstname:
-                fotograaf.firstname,
-
-              lastname:
-                fotograaf.lastname,
-
-              diensten:
-                fotograaf.diensten,
-
-              travel_minutes:
-                travel.travel_minutes,
-
-              distance_km:
-                travel.distance_km,
-
-              availability,
-
-              blocks,
-
-              bookings:
-                bookings.results,
-
-              slots
-
-            };
-
           }
 
-          catch (error) {
-
-            console.error(
-              "Fout bij fotograaf:",
-              fotograaf.firstname,
-              error
-            );
-
-            console.error(error);
-
-return null;
-
-          }
-
-        })
+        )
 
       );
 
     // ==========================================
-    // Resultaten sorteren
+    // Resultaten
     // ==========================================
 
     const matches =
@@ -288,9 +273,9 @@ return null;
 
           (a, b) =>
 
-            (a.travel_minutes || 9999) -
+            a.travel_minutes -
 
-            (b.travel_minutes || 9999)
+            b.travel_minutes
 
         );
 
