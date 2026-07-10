@@ -265,21 +265,9 @@ export default async function handler(req, res) {
               error
             );
 
-            return {
+            console.error(error);
 
-              id:
-                fotograaf.id,
-
-              firstname:
-                fotograaf.firstname,
-
-              lastname:
-                fotograaf.lastname,
-
-              error:
-                error.message
-
-            };
+return null;
 
           }
 
