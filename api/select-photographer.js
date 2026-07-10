@@ -1,4 +1,4 @@
-import { cors } from "../lib/cors";
+import { cors } from "../lib/cors.js";
 
 import {
   findContactByEmail,
