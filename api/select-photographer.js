@@ -1,9 +1,13 @@
 import { enableCors } from "../lib/cors.js";
 
 import {
+
   findContactByEmail,
+
   createTicket,
+
   associateTicketWithContact
+
 } from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
@@ -15,8 +19,11 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
 
     return res.status(405).json({
+
       success: false,
+
       message: "Method not allowed"
+
     });
 
   }
@@ -25,98 +32,96 @@ export default async function handler(req, res) {
 
     const {
 
-      firstname,
-      lastname,
       email,
-      phone,
 
       address,
-      diensten,
-      opmerkingen,
 
-      latitude,
-      longitude,
+      diensten,
+
+      opmerkingen,
 
       photographer_id,
 
       start,
+
       end
 
     } = req.body;
 
-    console.log("=== Nieuwe boeking ===");
+    console.log("========== NIEUWE BOEKING ==========");
     console.log(req.body);
 
     if (
-  !email ||
-  !photographer_id ||
-  !start ||
-  !end
-)
+
+      !email ||
+
+      !photographer_id ||
+
+      !start ||
+
+      !end
+
+    ) {
+
       return res.status(400).json({
+
         success: false,
+
         message: "Missing required fields"
+
       });
 
     }
 
-    // =====================================
+    // ================================
     // Contact zoeken
-    // =====================================
+    // ================================
 
-  const contact = await findContactByEmail(email);
+    const contact =
 
-if (!contact) {
+      await findContactByEmail(email);
 
-  return res.status(404).json({
-    success: false,
-    message: "Ingelogde makelaar niet gevonden."
-  });
+    if (!contact) {
 
-} else {
+      return res.status(404).json({
 
-      console.log("Bestaand contact gevonden");
+        success: false,
 
-    }
-
-    // =====================================
-    // Ticket aanmaken
-    // =====================================
-
-    console.log("Ticket aanmaken");
-
-    const ticket =
-      await createTicket({
-
-        hs_ticket_name:
-          address,
-
-        adres:
-          address,
-
-        diensten,
-
-        opmerkingen,
-
-        latitude,
-        longitude,
-
-        selected_photographer_id:
-          photographer_id,
-
-        afspraak_start:
-          start,
-
-        afspraak_einde:
-          end
+        message: "Contact niet gevonden."
 
       });
 
-    // =====================================
-    // Ticket koppelen aan contact
-    // =====================================
+    }
 
-    console.log("Ticket koppelen");
+    console.log("Contact gevonden:", contact.id);
+
+    // ================================
+    // Ticket aanmaken
+    // ================================
+
+    const ticket = await createTicket({
+
+      hs_ticket_name: address,
+
+      adres: address,
+
+      diensten,
+
+      opmerkingen,
+
+      selected_photographer_id: photographer_id,
+
+      afspraak_start: start,
+
+      afspraak_einde: end
+
+    });
+
+    console.log("Ticket aangemaakt:", ticket.id);
+
+    // ================================
+    // Ticket koppelen
+    // ================================
 
     await associateTicketWithContact(
 
@@ -126,21 +131,15 @@ if (!contact) {
 
     );
 
-    // =====================================
-    // Klaar
-    // =====================================
-
-    console.log("Boeking succesvol");
+    console.log("Ticket gekoppeld");
 
     return res.status(200).json({
 
       success: true,
 
-      ticketId:
-        ticket.id,
+      ticketId: ticket.id,
 
-      contactId:
-        contact.id
+      contactId: contact.id
 
     });
 
@@ -148,14 +147,18 @@ if (!contact) {
 
   catch (error) {
 
+    console.error("================================");
+    console.error("SELECT PHOTOGRAPHER ERROR");
     console.error(error);
+    console.error("================================");
 
     return res.status(500).json({
 
       success: false,
 
-      message:
-        error.message
+      message: error.message,
+
+      stack: error.stack
 
     });
 
