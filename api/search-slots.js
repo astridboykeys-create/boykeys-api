@@ -25,11 +25,8 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
 
     return res.status(405).json({
-
       success: false,
-
       error: "Method not allowed"
-
     });
 
   }
@@ -37,26 +34,17 @@ export default async function handler(req, res) {
   try {
 
     const {
-
       latitude,
-
       longitude,
-
       diensten = [],
-
       date
-
     } = req.body;
 
     if (!latitude || !longitude) {
 
       return res.status(400).json({
-
         success: false,
-
-        error:
-          "Latitude en longitude ontbreken."
-
+        error: "Latitude en longitude ontbreken."
       });
 
     }
@@ -66,19 +54,19 @@ export default async function handler(req, res) {
         ? new Date(date)
         : new Date();
 
-    // ==========================
+    // ==========================================
     // Fotografen ophalen
-    // ==========================
+    // ==========================================
 
     const fotografen =
       await getPhotographers();
 
     console.log("=== ALLE FOTOGRAFEN ===");
-console.log(fotografen);
+    console.log(fotografen);
 
-    // ==========================
+    // ==========================================
     // Diensten filteren
-    // ==========================
+    // ==========================================
 
     const geschikteFotografen =
       fotografen.filter(fotograaf => {
@@ -89,213 +77,219 @@ console.log(fotografen);
             .filter(Boolean);
 
         return diensten.every(
-
           dienst =>
-
-            beschikbareDiensten.includes(
-              dienst
-            )
-
+            beschikbareDiensten.includes(dienst)
         );
 
       });
 
-    // ==========================
+    console.log("=== NA DIENSTENFILTER ===");
+    console.log(geschikteFotografen);
+
+    // ==========================================
     // Matching
-    // ==========================
+    // ==========================================
 
     const resultaten =
       await Promise.all(
 
-        geschikteFotografen.map(
+        geschikteFotografen.map(async fotograaf => {
 
-          async (fotograaf) => {
+          try {
 
-            try {
+            console.log(
+              "Controle:",
+              fotograaf.firstname,
+              fotograaf.lastname
+            );
 
-              // ==========================
-              // Reistijd
-              // ==========================
+            // ======================================
+            // Reistijd
+            // ======================================
 
-              const travel =
-                await getTravelInfo(
+            const travel =
+              await getTravelInfo(
 
-                  console.log(
-  "Controle:",
-  fotograaf.firstname,
-  fotograaf.lastname
-);
+                fotograaf.latitude,
 
-                  fotograaf.latitude,
+                fotograaf.longitude,
 
-                  fotograaf.longitude,
+                latitude,
 
-                  latitude,
+                longitude
 
-                  longitude
+              );
 
-                );
+            console.log(
+              "Reistijd:",
+              travel.travel_minutes,
+              "Max:",
+              fotograaf.max_reistijd_minuten
+            );
 
-              if (
+            if (
+              travel.travel_minutes >
+              fotograaf.max_reistijd_minuten
+            ) {
 
-                travel.travel_minutes >
+              console.log(
+                "Afgevallen wegens reistijd"
+              );
 
-                fotograaf.max_reistijd_minuten
+              return null;
 
-              ) {
+            }
 
-                return null;
+            // ======================================
+            // Availability
+            // ======================================
 
-              }
+            const availability =
+              await getAvailability(
+                fotograaf.id
+              );
 
-              // ==========================
-              // Availability
-              // ==========================
+            // ======================================
+            // Blocks
+            // ======================================
 
-              const availability =
-                await getAvailability(
-                  fotograaf.id
-                );
+            const blocks =
+              await getBlocks(
+                fotograaf.id
+              );
 
-              // ==========================
-              // Blokkades
-              // ==========================
+            // ======================================
+            // HubSpot boekingen
+            // ======================================
 
-              const blocks =
-                await getBlocks(
-                  fotograaf.id
-                );
+            const bookings =
+              await getBookings(
+                fotograaf.id
+              );
 
-              // ==========================
-              // Boekingen
-              // ==========================
+            // ======================================
+            // Niet beschikbare periodes
+            // ======================================
 
-              const bookings =
-                await getBookings(
-                  fotograaf.id
-                );
+            const unavailablePeriods = [
 
-              // ==========================
-              // Niet beschikbare periodes
-              // ==========================
+              ...blocks.map(block => ({
 
-              const unavailablePeriods = [
+                start:
+                  block.start_at,
 
-                ...blocks.map(block => ({
+                end:
+                  block.end_at
+
+              })),
+
+              ...(bookings.results || [])
+
+                .filter(ticket =>
+
+                  ticket.properties.afspraak_start &&
+
+                  ticket.properties.afspraak_einde
+
+                )
+
+                .map(ticket => ({
 
                   start:
-                    block.start_at,
+                    ticket.properties.afspraak_start,
 
                   end:
-                    block.end_at
+                    ticket.properties.afspraak_einde
 
-                })),
+                }))
 
-                ...(bookings.results || [])
+            ];
 
-                  .filter(ticket =>
+            // ======================================
+            // Slots
+            // ======================================
 
-                    ticket.properties
-                      .afspraak_start &&
-
-                    ticket.properties
-                      .afspraak_einde
-
-                  )
-
-                  .map(ticket => ({
-
-                    start:
-                      ticket.properties
-                        .afspraak_start,
-
-                    end:
-                      ticket.properties
-                        .afspraak_einde
-
-                  }))
-
-              ];
-
-              // ==========================
-              // Planner
-              // ==========================
-
-              const slots =
-                getAvailableSlots(
-
-                  availability,
-
-                  unavailablePeriods,
-
-                  searchDate
-
-                );
-
-              // ==========================
-              // Resultaat
-              // ==========================
-
-              return {
-
-                id:
-                  fotograaf.id,
-
-                firstname:
-                  fotograaf.firstname,
-
-                lastname:
-                  fotograaf.lastname,
-
-                diensten:
-                  fotograaf.diensten,
-
-                travel_minutes:
-                  travel.travel_minutes,
-
-                distance_km:
-                  travel.distance_km,
+            const slots =
+              getAvailableSlots(
 
                 availability,
 
-                blocks,
+                unavailablePeriods,
 
-                bookings:
-                  bookings.results,
+                searchDate
 
-                slots
+              );
 
-              };
+            // ======================================
+            // Resultaat
+            // ======================================
 
-            }
+            return {
 
-            catch (error) {
+              id:
+                fotograaf.id,
 
-              // Tijdelijk debuggen
-              return {
+              firstname:
+                fotograaf.firstname,
 
-                id:
-                  fotograaf.id,
+              lastname:
+                fotograaf.lastname,
 
-                firstname:
-                  fotograaf.firstname,
+              diensten:
+                fotograaf.diensten,
 
-                error:
-                  error.message
+              travel_minutes:
+                travel.travel_minutes,
 
-              };
+              distance_km:
+                travel.distance_km,
 
-            }
+              availability,
+
+              blocks,
+
+              bookings:
+                bookings.results,
+
+              slots
+
+            };
 
           }
 
-        )
+          catch (error) {
+
+            console.error(
+              "Fout bij fotograaf:",
+              fotograaf.firstname,
+              error
+            );
+
+            return {
+
+              id:
+                fotograaf.id,
+
+              firstname:
+                fotograaf.firstname,
+
+              lastname:
+                fotograaf.lastname,
+
+              error:
+                error.message
+
+            };
+
+          }
+
+        })
 
       );
 
-    // ==========================
-    // Resultaten
-    // ==========================
+    // ==========================================
+    // Resultaten sorteren
+    // ==========================================
 
     const matches =
       resultaten
@@ -311,6 +305,10 @@ console.log(fotografen);
             (b.travel_minutes || 9999)
 
         );
+
+    // ==========================================
+    // Response
+    // ==========================================
 
     return res.status(200).json({
 
