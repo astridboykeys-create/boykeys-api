@@ -73,6 +73,9 @@ export default async function handler(req, res) {
     const fotografen =
       await getPhotographers();
 
+    console.log("=== ALLE FOTOGRAFEN ===");
+console.log(fotografen);
+
     // ==========================
     // Diensten filteren
     // ==========================
