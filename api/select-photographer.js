@@ -80,28 +80,28 @@ export default async function handler(req, res) {
 
     // Ticket aanmaken
     const ticket =
-      await createTicket({
+  await createTicket({
 
-        subject:
-          `${address}`,
+    hs_ticket_name:
+      address,
 
-        adres:
-          address,
+    adres:
+      address,
 
-        diensten,
+    diensten,
 
-        opmerkingen,
+    opmerkingen,
 
-        selected_photographer_id:
-          photographer_id,
+    selected_photographer_id:
+      photographer_id,
 
-        afspraak_start:
-          start,
+    afspraak_start:
+      start,
 
-        afspraak_einde:
-          end
+    afspraak_einde:
+      end
 
-      });
+  });
 
     // Contact koppelen
     await associateTicketWithContact(
