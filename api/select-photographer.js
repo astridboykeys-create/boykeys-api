@@ -2,7 +2,6 @@ import { enableCors } from "../lib/cors.js";
 
 import {
   findContactByEmail,
-  createContact,
   createTicket,
   associateTicketWithContact
 } from "../lib/hubspot.js";
