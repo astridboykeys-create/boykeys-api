@@ -1,4 +1,5 @@
 import { enableCors } from "../lib/cors.js";
+import { hubspotRequest } from "../lib/hubspot.js";
 
 import {
 
@@ -94,6 +95,12 @@ export default async function handler(req, res) {
     }
 
     console.log("Contact gevonden:", contact.id);
+
+    const pipelines = await hubspotRequest("/crm/v3/pipelines/tickets");
+
+console.log(JSON.stringify(pipelines, null, 2));
+
+return res.status(200).json(pipelines);
 
     // ================================
     // Ticket aanmaken
