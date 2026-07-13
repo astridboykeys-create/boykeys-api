@@ -94,35 +94,32 @@ export default async function handler(req, res) {
 
     }
 
-    console.log("Contact gevonden:", contact.id);
-
-    const pipelines = await hubspotRequest("/crm/v3/pipelines/tickets");
-
-console.log(JSON.stringify(pipelines, null, 2));
-
-return res.status(200).json(pipelines);
-
+    
     // ================================
     // Ticket aanmaken
     // ================================
 
     const ticket = await createTicket({
 
-      hs_ticket_name: address,
+  hs_pipeline: "0",
 
-      adres: address,
+  hs_pipeline_stage: "1",
 
-      diensten,
+  hs_ticket_name: address,
 
-      opmerkingen,
+  adres: address,
 
-      selected_photographer_id: photographer_id,
+  diensten,
 
-      afspraak_start: start,
+  opmerkingen,
 
-      afspraak_einde: end
+  selected_photographer_id: photographer_id,
 
-    });
+  afspraak_start: start,
+
+  afspraak_einde: end
+
+});
 
     console.log("Ticket aangemaakt:", ticket.id);
 
