@@ -105,7 +105,7 @@ export default async function handler(req, res) {
 
   hs_pipeline_stage: "1",
 
-  hs_ticket_name: address,
+  subject: address,
 
   adres: address,
 
