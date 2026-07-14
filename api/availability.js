@@ -45,6 +45,8 @@ if (!photographer_id) {
 
 if (action === "jobs") {
 
+     const { photographer_id } = req.query;
+
     const jobs =
         await getMyJobs(
             photographer_id
@@ -60,7 +62,7 @@ if (action === "jobs") {
 
 }
 
-            const { photographer_id } = req.query;
+           
 
             if (!photographer_id) {
 
