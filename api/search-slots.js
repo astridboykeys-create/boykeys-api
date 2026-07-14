@@ -54,6 +54,12 @@ export default async function handler(req, res) {
         ? new Date(date)
         : new Date();
 
+    console.log("================================");
+    console.log("SEARCH DATE");
+    console.log(searchDate);
+    console.log(searchDate.toISOString());
+    console.log(searchDate.toString());
+
     // ==========================================
     // Fotografen ophalen
     // ==========================================
@@ -211,7 +217,13 @@ export default async function handler(req, res) {
 
             ];
 
-            console.log(unavailablePeriods);
+            console.log("================================");
+            console.log("BLOCKS");
+            console.log(JSON.stringify(blocks, null, 2));
+
+            console.log("================================");
+            console.log("UNAVAILABLE PERIODS");
+            console.log(JSON.stringify(unavailablePeriods, null, 2));
 
             // ======================================
             // Stap 6 - Planner
@@ -230,6 +242,8 @@ export default async function handler(req, res) {
 
               );
 
+            console.log("================================");
+            console.log("SLOTS");
             console.log(slots);
 
             // ======================================
