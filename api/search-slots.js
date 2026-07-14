@@ -258,7 +258,7 @@ if (slots.length === 0) {
 
 }
 
-}
+
 
             console.log("================================");
             console.log("SLOTS");
