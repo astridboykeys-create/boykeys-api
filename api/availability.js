@@ -11,6 +11,10 @@ import {
     deleteBlock
 } from "../lib/blocks.js";
 
+import {
+    getMyJobs
+} from "../lib/hubspot.js";
+
 export default async function handler(req, res) {
 
     if (enableCors(req, res)) return;
@@ -24,6 +28,37 @@ export default async function handler(req, res) {
         // ============================
 
         if (req.method === "GET") {
+
+            const {
+    action,
+    photographer_id
+} = req.query;
+
+if (!photographer_id) {
+
+    return res.status(400).json({
+        success: false,
+        error: "photographer_id is verplicht"
+    });
+
+}
+
+if (action === "jobs") {
+
+    const jobs =
+        await getMyJobs(
+            photographer_id
+        );
+
+    return res.status(200).json({
+
+        success: true,
+
+        data: jobs.results
+
+    });
+
+}
 
             const { photographer_id } = req.query;
 
