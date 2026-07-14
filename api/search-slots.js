@@ -232,21 +232,31 @@ export default async function handler(req, res) {
             console.log("Stap 6 - Planner");
 
             const slots =
-              getAvailableSlots(
+    getAvailableSlots(
 
-                availability,
+        availability,
 
-                unavailablePeriods,
+        unavailablePeriods,
 
-                searchDate
+        searchDate
 
-              );
+    );
 
-            if (slots.length === 0) {
+if (slots.length === 0) {
 
-    console.log("Geen beschikbare slots");
+    console.log("================================");
+    console.log("FOTOGRAAF AFGEWEZEN");
+    console.log("Naam:", fotograaf.firstname, fotograaf.lastname);
+    console.log("ID:", fotograaf.id);
+    console.log("Travel:", travel.travel_minutes);
+    console.log("Availability:", availability);
+    console.log("Blocks:", blocks.length);
+    console.log("Bookings:", bookings.results.length);
+    console.log("Slots:", slots);
 
     return null;
+
+}
 
 }
 
