@@ -242,6 +242,14 @@ export default async function handler(req, res) {
 
               );
 
+            if (slots.length === 0) {
+
+    console.log("Geen beschikbare slots");
+
+    return null;
+
+}
+
             console.log("================================");
             console.log("SLOTS");
             console.log(slots);
