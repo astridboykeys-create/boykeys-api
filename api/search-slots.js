@@ -74,20 +74,37 @@ export default async function handler(req, res) {
     // Diensten filteren
     // ==========================================
 
-    const geschikteFotografen =
-      fotografen.filter(fotograaf => {
+// ==========================================
+// Diensten filteren
+// ==========================================
 
-        const beschikbareDiensten =
-          (fotograaf.diensten || "")
-            .split(";")
-            .filter(Boolean);
+console.log("================================");
+console.log("GEVRAAGDE DIENSTEN");
+console.log(diensten);
 
-        return diensten.every(
-          dienst =>
-            beschikbareDiensten.includes(dienst)
-        );
+const geschikteFotografen =
+  fotografen.filter(fotograaf => {
 
-      });
+    const beschikbareDiensten =
+      (fotograaf.diensten || "")
+        .split(";")
+        .filter(Boolean);
+
+    console.log("--------------------------------");
+    console.log("Fotograaf:", fotograaf.firstname);
+    console.log("Beschikbaar:", beschikbareDiensten);
+
+    const match =
+      diensten.every(
+        dienst =>
+          beschikbareDiensten.includes(dienst)
+      );
+
+    console.log("MATCH:", match);
+
+    return match;
+
+  });
 
     console.log("=== NA DIENSTENFILTER ===");
     console.log(geschikteFotografen);
