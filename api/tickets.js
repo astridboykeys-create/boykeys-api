@@ -1,7 +1,8 @@
 import { enableCors } from "../lib/cors.js";
 
 import {
-    getMyJobs
+    getMyJobs,
+    getMyOrders
 } from "../lib/hubspot.js";
 
 export default async function handler(req, res) {
@@ -13,17 +14,33 @@ export default async function handler(req, res) {
         if (req.method !== "GET") {
 
             return res.status(405).json({
-                success: false
+                success: false,
+                error: "Method not allowed"
             });
 
         }
 
         const {
             action,
-            photographer_id
+            photographer_id,
+            contact_id
         } = req.query;
 
+
+        // =========================
+        // FOTOGRAAF - MIJN OPDRACHTEN
+        // =========================
+
         if (action === "my-jobs") {
+
+            if (!photographer_id) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "photographer_id is verplicht"
+                });
+
+            }
 
             const jobs =
                 await getMyJobs(
@@ -34,11 +51,43 @@ export default async function handler(req, res) {
 
                 success: true,
 
-                jobs: jobs.results
+                jobs: jobs.results || []
 
             });
 
         }
+
+
+        // =========================
+        // MAKELAAR - MIJN OPDRACHTEN
+        // =========================
+
+        if (action === "my-orders") {
+
+            if (!contact_id) {
+
+                return res.status(400).json({
+                    success: false,
+                    error: "contact_id is verplicht"
+                });
+
+            }
+
+            const orders =
+                await getMyOrders(
+                    contact_id
+                );
+
+            return res.status(200).json({
+
+                success: true,
+
+                orders
+
+            });
+
+        }
+
 
         return res.status(400).json({
 
