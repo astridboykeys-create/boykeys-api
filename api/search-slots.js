@@ -33,12 +33,13 @@ export default async function handler(req, res) {
 
   try {
 
-    const {
-      latitude,
-      longitude,
-      diensten = [],
-      date
-    } = req.body;
+const {
+  latitude,
+  longitude,
+  diensten = [],
+  date,
+  exclude_ticket_id
+} = req.body;
 
     if (!latitude || !longitude) {
 
@@ -214,23 +215,31 @@ const geschikteFotografen =
 
               ...(bookings.results || [])
 
-                .filter(ticket =>
+  .filter(ticket => {
 
-                  ticket.properties.afspraak_start &&
+    if (
+      exclude_ticket_id &&
+      String(ticket.id) === String(exclude_ticket_id)
+    ) {
+      return false;
+    }
 
-                  ticket.properties.afspraak_einde
+    return (
+      ticket.properties.afspraak_start &&
+      ticket.properties.afspraak_einde
+    );
 
-                )
+  })
 
-                .map(ticket => ({
+  .map(ticket => ({
 
-                  start:
-                    ticket.properties.afspraak_start,
+    start:
+      ticket.properties.afspraak_start,
 
-                  end:
-                    ticket.properties.afspraak_einde
+    end:
+      ticket.properties.afspraak_einde
 
-                }))
+  }))
 
             ];
 
