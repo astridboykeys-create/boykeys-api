@@ -1,6 +1,28 @@
 import { enableCors } from "../lib/cors.js";
 import { hubspotRequest } from "../lib/hubspot.js";
 
+export default async function handler(req, res) {
+  if (enableCors(req, res)) return;
+
+  try {
+    const pipelines = await hubspotRequest("/crm/v3/pipelines/tickets");
+
+    console.log(JSON.stringify(pipelines, null, 2));
+
+    return res.status(200).json(pipelines);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+/*
+import { enableCors } from "../lib/cors.js";
+import { hubspotRequest } from "../lib/hubspot.js";
+
 import {
 
   findContactByEmail,
@@ -169,3 +191,4 @@ export default async function handler(req, res) {
   }
 
 }
+*/
