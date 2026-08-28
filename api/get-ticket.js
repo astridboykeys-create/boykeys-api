@@ -1,120 +1,166 @@
+import { enableCors } from "../lib/cors.js";
+
 import {
-  searchTickets
-}
-from "../lib/hubspot.js";
+  getTicket,
+  getTicketAssociations,
+  getContact
+} from "../lib/hubspot.js";
+
 
 export default async function handler(req, res) {
 
-  // CORS
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    "*"
-  );
+  if (enableCors(req, res)) return;
 
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,POST,OPTIONS"
-  );
 
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "*"
-  );
+  if (req.method !== "GET") {
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  const requestId = req.query.request_id;
-
-  if (!requestId) {
-    return res.status(400).json({
-      error: "request_id ontbreekt"
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed"
     });
+
   }
+
 
   try {
 
-   const ticketData =
-  await searchTickets({
+    const {
+      ticket_id,
+      contact_id
+    } = req.query;
 
-    filterGroups: [
-      {
-        filters: [
-          {
-            propertyName:
-              "request_id",
-            operator: "EQ",
-            value: requestId
-          }
-        ]
-      }
-    ],
 
-    properties: [
-      "beschikbare_fotografen"
-    ],
+    if (!ticket_id) {
 
-    limit: 1
-
-  });
-
-    if (
-      !ticketData.results ||
-      ticketData.results.length === 0
-    ) {
-      return res.status(404).json({
-        error: "Ticket niet gevonden"
+      return res.status(400).json({
+        success: false,
+        error: "ticket_id ontbreekt"
       });
+
     }
+
 
     const ticket =
-      ticketData.results[0];
+      await getTicket(
+        ticket_id,
+        [
+          "adres",
+          "diensten",
+          "selected_photographer_id",
+          "afspraak_start",
+          "afspraak_einde",
+          "hs_pipeline_stage"
+        ]
+      );
 
-    const ids =
-      (ticket.properties.beschikbare_fotografen || "")
-        .split(";")
-        .map(id => id.trim())
-        .filter(Boolean);
 
-    const photographers = [];
+    // =====================================
+    // Controleren of ticket bij makelaar hoort
+    // =====================================
 
-    for (const id of ids) {
+    if (contact_id) {
 
-      const contactResponse =
-        await fetch(
-          `https://api.hubapi.com/crm/v3/objects/contacts/${id}?properties=firstname,lastname,regio`,
-          {
-            headers: {
-              Authorization:
-                `Bearer ${process.env.HUBSPOT_TOKEN}`
-            }
-          }
+      const associations =
+        await getTicketAssociations(
+          ticket_id,
+          "contacts"
         );
 
-      const contact =
-        await contactResponse.json();
 
-      photographers.push({
-        id,
-        firstname:
-          contact.properties?.firstname || "",
-        lastname:
-          contact.properties?.lastname || "",
-        regio:
-          contact.properties?.regio || ""
-      });
+      const allowed =
+        (associations.results || [])
+          .some(item =>
+            String(item.toObjectId) ===
+            String(contact_id)
+          );
+
+
+      if (!allowed) {
+
+        return res.status(403).json({
+          success: false,
+          error: "Geen toegang tot deze boeking"
+        });
+
+      }
 
     }
 
+
+    // =====================================
+    // Fotograaf ophalen
+    // =====================================
+
+    let fotograaf = null;
+
+    const photographerId =
+      ticket.properties
+        ?.selected_photographer_id;
+
+
+    if (photographerId) {
+
+      try {
+
+        const contact =
+          await getContact(
+            photographerId,
+            [
+              "firstname",
+              "lastname",
+              "email"
+            ]
+          );
+
+
+        fotograaf = {
+
+          id: contact.id,
+
+          firstname:
+            contact.properties?.firstname || "",
+
+          lastname:
+            contact.properties?.lastname || "",
+
+          email:
+            contact.properties?.email || ""
+
+        };
+
+      } catch (error) {
+
+        console.error(
+          "Fotograaf kon niet worden geladen",
+          error
+        );
+
+      }
+
+    }
+
+
     return res.status(200).json({
-      photographers
+
+      success: true,
+
+      ticket,
+
+      fotograaf
+
     });
+
 
   } catch (error) {
 
+    console.error(error);
+
     return res.status(500).json({
+
+      success: false,
+
       error: error.message
+
     });
 
   }
