@@ -31,15 +31,10 @@ function timeToMinutes(time) {
     return null;
   }
 
-
-  const [
-    hours,
-    minutes
-  ] =
+  const [hours, minutes] =
     time
       .split(":")
       .map(Number);
-
 
   return (
     hours * 60 +
@@ -50,27 +45,22 @@ function timeToMinutes(time) {
 
 
 // ============================================
-// HubSpot datetime -> Nederlandse datum
+// HubSpot datetime -> datum Europe/Amsterdam
 // ============================================
 
-function getAmsterdamDateString(
-  value
-) {
+function getAmsterdamDateString(value) {
 
   if (!value) {
     return null;
   }
 
-
   const numeric =
     Number(value);
-
 
   const date =
     Number.isNaN(numeric)
       ? new Date(value)
       : new Date(numeric);
-
 
   if (
     Number.isNaN(
@@ -80,21 +70,13 @@ function getAmsterdamDateString(
     return null;
   }
 
-
   return new Intl.DateTimeFormat(
     "en-CA",
     {
-      year:
-        "numeric",
-
-      month:
-        "2-digit",
-
-      day:
-        "2-digit",
-
-      timeZone:
-        "Europe/Amsterdam"
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      timeZone: "Europe/Amsterdam"
     }
   ).format(date);
 
@@ -105,24 +87,19 @@ function getAmsterdamDateString(
 // HubSpot datetime -> minuten sinds 00:00
 // ============================================
 
-function getAmsterdamMinutes(
-  value
-) {
+function getAmsterdamMinutes(value) {
 
   if (!value) {
     return null;
   }
 
-
   const numeric =
     Number(value);
-
 
   const date =
     Number.isNaN(numeric)
       ? new Date(value)
       : new Date(numeric);
-
 
   if (
     Number.isNaN(
@@ -132,27 +109,16 @@ function getAmsterdamMinutes(
     return null;
   }
 
-
   const parts =
     new Intl.DateTimeFormat(
       "nl-NL",
       {
-
-        hour:
-          "2-digit",
-
-        minute:
-          "2-digit",
-
-        hour12:
-          false,
-
-        timeZone:
-          "Europe/Amsterdam"
-
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Europe/Amsterdam"
       }
     ).formatToParts(date);
-
 
   const hour =
     Number(
@@ -162,7 +128,6 @@ function getAmsterdamMinutes(
       )?.value
     );
 
-
   const minute =
     Number(
       parts.find(
@@ -170,7 +135,6 @@ function getAmsterdamMinutes(
           part.type === "minute"
       )?.value
     );
-
 
   return (
     hour * 60 +
@@ -181,7 +145,7 @@ function getAmsterdamMinutes(
 
 
 // ============================================
-// Boekingen voorbereiden voor travel-check
+// Boekingen van geselecteerde dag voorbereiden
 // ============================================
 
 function prepareBookingsForDate(
@@ -194,87 +158,76 @@ function prepareBookingsForDate(
     bookings.results ||
     []
   )
-    .filter(
-      ticket => {
 
-        if (
-          excludeTicketId &&
-          String(ticket.id) ===
-          String(excludeTicketId)
-        ) {
+    .filter(ticket => {
 
-          return false;
+      if (
+        excludeTicketId &&
+        String(ticket.id) ===
+        String(excludeTicketId)
+      ) {
+        return false;
+      }
 
-        }
+      const properties =
+        ticket.properties || {};
 
+      if (
+        !properties.afspraak_start ||
+        !properties.afspraak_einde
+      ) {
+        return false;
+      }
 
-        const properties =
-          ticket.properties ||
-          {};
-
-
-        if (
-          !properties.afspraak_start ||
-          !properties.afspraak_einde
-        ) {
-
-          return false;
-
-        }
-
-
-        const bookingDate =
-          getAmsterdamDateString(
-            properties.afspraak_start
-          );
-
-
-        return (
-          bookingDate ===
-          selectedDate
+      const bookingDate =
+        getAmsterdamDateString(
+          properties.afspraak_start
         );
 
-      }
-    )
-    .map(
-      ticket => {
+      return (
+        bookingDate ===
+        selectedDate
+      );
 
-        const properties =
-          ticket.properties ||
-          {};
+    })
 
+    .map(ticket => {
 
-        return {
+      const properties =
+        ticket.properties || {};
 
-          id:
-            ticket.id,
+      return {
 
-          address:
-            properties.adres ||
-            "",
+        id:
+          ticket.id,
 
-          startMinutes:
-            getAmsterdamMinutes(
-              properties.afspraak_start
-            ),
+        address:
+          properties.adres ||
+          "",
 
-          endMinutes:
-            getAmsterdamMinutes(
-              properties.afspraak_einde
-            ),
+        startMinutes:
+          getAmsterdamMinutes(
+            properties.afspraak_start
+          ),
 
-          raw:
-            ticket
+        endMinutes:
+          getAmsterdamMinutes(
+            properties.afspraak_einde
+          ),
 
-        };
+        raw:
+          ticket
 
-      }
-    )
+      };
+
+    })
+
     .filter(
       booking =>
         booking.startMinutes !== null &&
         booking.endMinutes !== null
     )
+
     .sort(
       (a, b) =>
         a.startMinutes -
@@ -285,7 +238,7 @@ function prepareBookingsForDate(
 
 
 // ============================================
-// Vorige boeking zoeken
+// Laatste boeking vóór slot zoeken
 // ============================================
 
 function findPreviousBooking(
@@ -295,7 +248,6 @@ function findPreviousBooking(
 
   let previous =
     null;
-
 
   for (
     const booking of bookings
@@ -321,14 +273,13 @@ function findPreviousBooking(
 
   }
 
-
   return previous;
 
 }
 
 
 // ============================================
-// Volgende boeking zoeken
+// Eerste boeking ná slot zoeken
 // ============================================
 
 function findNextBooking(
@@ -338,7 +289,6 @@ function findNextBooking(
 
   let next =
     null;
-
 
   for (
     const booking of bookings
@@ -364,7 +314,6 @@ function findNextBooking(
 
   }
 
-
   return next;
 
 }
@@ -388,7 +337,6 @@ export default async function handler(
     return;
   }
 
-
   if (
     req.method !==
     "POST"
@@ -397,31 +345,20 @@ export default async function handler(
     return res
       .status(405)
       .json({
-
-        success:
-          false,
-
-        error:
-          "Method not allowed"
-
+        success: false,
+        error: "Method not allowed"
       });
 
   }
 
-
   try {
 
     const {
-
       latitude,
       longitude,
-
       diensten = [],
-
       date,
-
       exclude_ticket_id
-
     } = req.body;
 
 
@@ -439,22 +376,13 @@ export default async function handler(
       return res
         .status(400)
         .json({
-
-          success:
-            false,
-
+          success: false,
           error:
             "Latitude en longitude ontbreken."
-
         });
 
     }
 
-
-    /*
-     * selectedDate houden we bewust
-     * als YYYY-MM-DD.
-     */
 
     const selectedDate =
       date ||
@@ -475,51 +403,32 @@ export default async function handler(
       );
 
 
-    console.log(
-      "================================"
-    );
-
-    console.log(
-      "SEARCH DATE"
-    );
-
-    console.log(
-      selectedDate
-    );
-
-
     // ==========================================
-    // Planner settings
+    // Planner instellingen
     // ==========================================
-
-    console.log(
-      "================================"
-    );
-
-    console.log(
-      "PLANNER SETTINGS OPHALEN"
-    );
-
 
     const plannerSettings =
       await getPlannerSettings();
 
 
     const {
-
       slotIntervalMinutes,
-
       bookingDurationMinutes
+    } = plannerSettings;
 
-    } =
-      plannerSettings;
 
+    console.log(
+      "================================"
+    );
+
+    console.log(
+      "PLANNER SETTINGS"
+    );
 
     console.log(
       "Slot interval:",
       slotIntervalMinutes
     );
-
 
     console.log(
       "Booking duration:",
@@ -533,15 +442,6 @@ export default async function handler(
 
     const fotografen =
       await getPhotographers();
-
-
-    console.log(
-      "=== ALLE FOTOGRAFEN ==="
-    );
-
-    console.log(
-      fotografen
-    );
 
 
     // ==========================================
@@ -560,7 +460,6 @@ export default async function handler(
               .split(";")
               .filter(Boolean);
 
-
           return diensten.every(
             dienst =>
               beschikbareDiensten.includes(
@@ -574,9 +473,6 @@ export default async function handler(
 
     // ==========================================
     // Geocode cache
-    //
-    // Zelfde adres hoeft tijdens één request
-    // maar één keer naar Google.
     // ==========================================
 
     const geocodeCache =
@@ -591,12 +487,10 @@ export default async function handler(
         return null;
       }
 
-
       const key =
         address
           .trim()
           .toLowerCase();
-
 
       if (
         geocodeCache.has(
@@ -610,7 +504,6 @@ export default async function handler(
 
       }
 
-
       try {
 
         const coordinates =
@@ -618,30 +511,25 @@ export default async function handler(
             address
           );
 
-
         geocodeCache.set(
           key,
           coordinates
         );
 
-
         return coordinates;
-
 
       } catch (error) {
 
         console.error(
-          "Adres kon niet worden geocodeerd:",
+          "Geocoding fout:",
           address,
           error
         );
-
 
         geocodeCache.set(
           key,
           null
         );
-
 
         return null;
 
@@ -651,7 +539,7 @@ export default async function handler(
 
 
     // ==========================================
-    // Route cache
+    // Travel cache
     // ==========================================
 
     const travelCache =
@@ -730,40 +618,7 @@ export default async function handler(
 
 
               // ======================================
-              // Stap 1 - Thuis -> nieuwe locatie
-              // ======================================
-
-              const travel =
-                await getCachedTravel(
-
-                  fotograaf.latitude,
-
-                  fotograaf.longitude,
-
-                  latitude,
-
-                  longitude
-
-                );
-
-
-              if (
-                travel.travel_minutes >
-                fotograaf.max_reistijd_minuten
-              ) {
-
-                console.log(
-                  "Afgevallen wegens max reistijd"
-                );
-
-
-                return null;
-
-              }
-
-
-              // ======================================
-              // Stap 2 - Availability
+              // Availability
               // ======================================
 
               const availability =
@@ -773,7 +628,7 @@ export default async function handler(
 
 
               // ======================================
-              // Stap 3 - Blocks
+              // Blocks
               // ======================================
 
               const blocks =
@@ -783,7 +638,7 @@ export default async function handler(
 
 
               // ======================================
-              // Stap 4 - Boekingen
+              // HubSpot boekingen
               // ======================================
 
               const bookings =
@@ -793,64 +648,52 @@ export default async function handler(
 
 
               // ======================================
-              // Stap 5 - unavailablePeriods
+              // Unavailable periods
               // ======================================
 
               const unavailablePeriods = [
 
                 ...blocks.map(
                   block => ({
-
                     start:
                       block.start_at,
-
                     end:
                       block.end_at
-
                   })
                 ),
-
 
                 ...(
                   bookings.results ||
                   []
                 )
 
-                  .filter(
-                    ticket => {
+                  .filter(ticket => {
 
-                      if (
-                        exclude_ticket_id &&
-                        String(ticket.id) ===
-                        String(exclude_ticket_id)
-                      ) {
-
-                        return false;
-
-                      }
-
-
-                      return (
-                        ticket.properties
-                          .afspraak_start &&
-                        ticket.properties
-                          .afspraak_einde
-                      );
-
+                    if (
+                      exclude_ticket_id &&
+                      String(ticket.id) ===
+                      String(exclude_ticket_id)
+                    ) {
+                      return false;
                     }
-                  )
+
+                    return (
+                      ticket.properties
+                        .afspraak_start &&
+                      ticket.properties
+                        .afspraak_einde
+                    );
+
+                  })
 
                   .map(
                     ticket => ({
-
                       start:
                         ticket.properties
                           .afspraak_start,
-
                       end:
                         ticket.properties
                           .afspraak_einde
-
                     })
                   )
 
@@ -858,59 +701,40 @@ export default async function handler(
 
 
               // ======================================
-              // Stap 6 - Basisslots
+              // Basis slots
               // ======================================
 
               const baseSlots =
                 getAvailableSlots(
-
                   availability,
-
                   unavailablePeriods,
-
                   searchDate,
-
                   bookingDurationMinutes,
-
                   slotIntervalMinutes
-
                 );
 
 
               if (
                 !baseSlots.length
               ) {
-
                 return null;
-
               }
 
 
               // ======================================
-              // Boekingen van geselecteerde dag
-              // voorbereiden
+              // Boekingen van deze dag
               // ======================================
 
               const dayBookings =
                 prepareBookingsForDate(
-
                   bookings,
-
                   selectedDate,
-
                   exclude_ticket_id
-
                 );
 
 
-              console.log(
-                "DAY BOOKINGS:",
-                dayBookings
-              );
-
-
               // ======================================
-              // Stap 7 - Reistijd tussen afspraken
+              // Slots + travel berekenen
               // ======================================
 
               const slotsWithTravel =
@@ -947,13 +771,22 @@ export default async function handler(
                   );
 
 
-                let valid =
-                  true;
-
-
                 // ==================================
-                // VORIGE BOEKING -> NIEUWE BOEKING
+                // INKOMENDE REISTIJD
+                //
+                // Als vorige boeking bestaat:
+                // vorige locatie -> nieuwe locatie
+                //
+                // Anders:
+                // thuis -> nieuwe locatie
                 // ==================================
+
+                let incomingTravel =
+                  null;
+
+                let travelFrom =
+                  "home";
+
 
                 if (
                   previousBooking
@@ -968,76 +801,117 @@ export default async function handler(
                       previousBooking.id
                     );
 
-
-                    valid =
-                      false;
-
-                  } else {
-
-                    const previousCoordinates =
-                      await getCoordinates(
-                        previousBooking.address
-                      );
-
-
-                    if (
-                      !previousCoordinates
-                    ) {
-
-                      valid =
-                        false;
-
-                    } else {
-
-                      const travelFromPrevious =
-                        await getCachedTravel(
-
-                          previousCoordinates.latitude,
-
-                          previousCoordinates.longitude,
-
-                          latitude,
-
-                          longitude
-
-                        );
-
-
-                      const firstPossibleStart =
-                        previousBooking.endMinutes +
-                        travelFromPrevious.travel_minutes;
-
-
-                      console.log(
-                        `Slot ${slot.start}: vorige eindigt ${previousBooking.endMinutes}, reistijd ${travelFromPrevious.travel_minutes}, beschikbaar vanaf ${firstPossibleStart}`
-                      );
-
-
-                      if (
-                        slotStart <
-                        firstPossibleStart
-                      ) {
-
-                        valid =
-                          false;
-
-                      }
-
-                    }
+                    continue;
 
                   }
+
+
+                  const previousCoordinates =
+                    await getCoordinates(
+                      previousBooking.address
+                    );
+
+
+                  if (
+                    !previousCoordinates
+                  ) {
+                    continue;
+                  }
+
+
+                  incomingTravel =
+                    await getCachedTravel(
+
+                      previousCoordinates.latitude,
+
+                      previousCoordinates.longitude,
+
+                      latitude,
+
+                      longitude
+
+                    );
+
+
+                  travelFrom =
+                    "previous_booking";
+
+
+                  // ==================================
+                  // Kan fotograaf op tijd aankomen?
+                  // ==================================
+
+                  const firstPossibleStart =
+                    previousBooking.endMinutes +
+                    incomingTravel.travel_minutes;
+
+
+                  if (
+                    slotStart <
+                    firstPossibleStart
+                  ) {
+
+                    console.log(
+                      `Slot ${slot.start} afgewezen: vorige boeking eindigt ${previousBooking.endMinutes}, reistijd ${incomingTravel.travel_minutes} min`
+                    );
+
+                    continue;
+
+                  }
+
+                } else {
+
+                  // ==================================
+                  // Geen vorige boeking:
+                  // vanuit huis
+                  // ==================================
+
+                  incomingTravel =
+                    await getCachedTravel(
+
+                      fotograaf.latitude,
+
+                      fotograaf.longitude,
+
+                      latitude,
+
+                      longitude
+
+                    );
+
+
+                  travelFrom =
+                    "home";
 
                 }
 
 
-                if (!valid) {
+                // ==================================
+                // Max reistijd controleren
+                // op DEZE daadwerkelijke route
+                // ==================================
+
+                if (
+                  incomingTravel.travel_minutes >
+                  fotograaf.max_reistijd_minuten
+                ) {
+
+                  console.log(
+                    `Slot ${slot.start} afgewezen wegens max reistijd: ${incomingTravel.travel_minutes} > ${fotograaf.max_reistijd_minuten}`
+                  );
+
                   continue;
+
                 }
 
 
                 // ==================================
                 // NIEUWE BOEKING -> VOLGENDE BOEKING
                 // ==================================
+
+                let outgoingTravel =
+                  null;
+
 
                 if (
                   nextBooking
@@ -1052,93 +926,93 @@ export default async function handler(
                       nextBooking.id
                     );
 
+                    continue;
 
-                    valid =
-                      false;
-
-                  } else {
-
-                    const nextCoordinates =
-                      await getCoordinates(
-                        nextBooking.address
-                      );
+                  }
 
 
-                    if (
-                      !nextCoordinates
-                    ) {
-
-                      valid =
-                        false;
-
-                    } else {
-
-                      const travelToNext =
-                        await getCachedTravel(
-
-                          latitude,
-
-                          longitude,
-
-                          nextCoordinates.latitude,
-
-                          nextCoordinates.longitude
-
-                        );
+                  const nextCoordinates =
+                    await getCoordinates(
+                      nextBooking.address
+                    );
 
 
-                      const latestPossibleEnd =
-                        nextBooking.startMinutes -
-                        travelToNext.travel_minutes;
+                  if (
+                    !nextCoordinates
+                  ) {
+                    continue;
+                  }
 
 
-                      console.log(
-                        `Slot ${slot.start}: nieuwe eindigt ${slotEnd}, reistijd naar volgende ${travelToNext.travel_minutes}, moet uiterlijk ${latestPossibleEnd} eindigen`
-                      );
+                  outgoingTravel =
+                    await getCachedTravel(
+
+                      latitude,
+
+                      longitude,
+
+                      nextCoordinates.latitude,
+
+                      nextCoordinates.longitude
+
+                    );
 
 
-                      if (
-                        slotEnd >
-                        latestPossibleEnd
-                      ) {
+                  const arrivalAtNext =
+                    slotEnd +
+                    outgoingTravel.travel_minutes;
 
-                        valid =
-                          false;
 
-                      }
+                  if (
+                    arrivalAtNext >
+                    nextBooking.startMinutes
+                  ) {
 
-                    }
+                    console.log(
+                      `Slot ${slot.start} afgewezen: einde ${slotEnd}, reistijd naar volgende ${outgoingTravel.travel_minutes}, volgende begint ${nextBooking.startMinutes}`
+                    );
+
+                    continue;
 
                   }
 
                 }
 
 
-                if (
-                  valid
-                ) {
+                // ==================================
+                // SLOT GOEDGEKEURD
+                // ==================================
 
-                  slotsWithTravel.push(
-                    slot
-                  );
+                slotsWithTravel.push({
 
-                }
+                  start:
+                    slot.start,
+
+                  end:
+                    slot.end,
+
+                  travel_minutes:
+                    incomingTravel.travel_minutes,
+
+                  travel_from:
+                    travelFrom,
+
+                  travel_distance_km:
+                    incomingTravel.distance_km,
+
+                  travel_to_next_minutes:
+                    outgoingTravel
+                      ?.travel_minutes ||
+                    null
+
+                });
 
               }
 
 
-              // ======================================
-              // Geen geldige slots meer
-              // ======================================
-
               if (
                 !slotsWithTravel.length
               ) {
-
-                console.log(
-                  "Fotograaf heeft geen slots na reistijd-check."
-                );
-
 
                 return null;
 
@@ -1146,7 +1020,7 @@ export default async function handler(
 
 
               // ======================================
-              // Resultaat
+              // Fotograaf resultaat
               // ======================================
 
               return {
@@ -1163,11 +1037,10 @@ export default async function handler(
                 diensten:
                   fotograaf.diensten,
 
-                travel_minutes:
-                  travel.travel_minutes,
-
-                distance_km:
-                  travel.distance_km,
+                /*
+                 * Geen algemene travel_minutes meer.
+                 * Reistijd zit nu PER SLOT.
+                 */
 
                 availability,
 
@@ -1181,10 +1054,7 @@ export default async function handler(
 
               };
 
-            }
-
-
-            catch (error) {
+            } catch (error) {
 
               console.error(
                 "================================"
@@ -1200,7 +1070,6 @@ export default async function handler(
                 error
               );
 
-
               return null;
 
             }
@@ -1212,19 +1081,12 @@ export default async function handler(
 
 
     // ==========================================
-    // Resultaten sorteren op reistijd
+    // Resultaten
     // ==========================================
 
     const matches =
       resultaten
-
-        .filter(Boolean)
-
-        .sort(
-          (a, b) =>
-            a.travel_minutes -
-            b.travel_minutes
-        );
+        .filter(Boolean);
 
 
     return res
@@ -1249,10 +1111,7 @@ export default async function handler(
 
       });
 
-  }
-
-
-  catch (error) {
+  } catch (error) {
 
     console.error(
       "SEARCH SLOTS ERROR:",
