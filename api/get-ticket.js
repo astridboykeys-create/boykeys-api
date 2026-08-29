@@ -40,18 +40,18 @@ export default async function handler(req, res) {
     }
 
 
-    const ticket =
-      await getTicket(
-        ticket_id,
-        [
-          "adres",
-          "diensten",
-          "selected_photographer_id",
-          "afspraak_start",
-          "afspraak_einde",
-          "hs_pipeline_stage"
-        ]
-      );
+    const ticket = await getTicket(
+  ticket_id,
+  [
+    "adres",
+    "diensten",
+    "opmerking_klant",
+    "selected_photographer_id",
+    "afspraak_start",
+    "afspraak_einde",
+    "hs_pipeline_stage"
+  ]
+);
 
 
     // =====================================
