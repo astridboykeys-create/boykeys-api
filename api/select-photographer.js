@@ -32,22 +32,14 @@ export default async function handler(req, res) {
   try {
 
     const {
-
-      email,
-
-      address,
-
-      diensten,
-
-      opmerkingen,
-
-      photographer_id,
-
-      start,
-
-      end
-
-    } = req.body;
+  email,
+  address,
+  diensten,
+  opmerking_klant,
+  photographer_id,
+  start,
+  end
+} = req.body;
 
     console.log("========== NIEUWE BOEKING ==========");
     console.log(req.body);
@@ -99,27 +91,33 @@ export default async function handler(req, res) {
     // Ticket aanmaken
     // ================================
 
-    const ticket = await createTicket({
+    const ticket =
+  await createTicket({
 
-  hs_pipeline: "0",
+    hs_pipeline:
+      "0",
 
-  hs_pipeline_stage: "1",
+    hs_pipeline_stage:
+      "1",
 
-  subject: address,
+    adres:
+      address,
 
-  adres: address,
+    diensten:
+      diensten,
 
-  diensten,
+    opmerking_klant:
+      opmerking_klant || "",
 
-  opmerkingen,
+    selected_photographer_id:
+      photographer_id,
 
-  selected_photographer_id: photographer_id,
+    afspraak_start:
+      start,
 
-  afspraak_start: start,
-
-  afspraak_einde: end
-
-});
+    afspraak_einde:
+      end
+  });
 
     console.log("Ticket aangemaakt:", ticket.id);
 
