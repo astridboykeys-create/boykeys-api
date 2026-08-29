@@ -6,7 +6,10 @@ import {
   getPlannerSettings
 } from "../lib/hubspot.js";
 
-import { getTravelInfo } from "../lib/googleRoutes.js";
+import {
+  getTravelInfo,
+  geocodeAddress
+} from "../lib/googleRoutes.js";
 
 import {
   getAvailability,
@@ -18,19 +21,390 @@ import {
 } from "../lib/planner.js";
 
 
-export default async function handler(req, res) {
+// ============================================
+// Tijd helpers
+// ============================================
 
-  if (enableCors(req, res)) {
+function timeToMinutes(time) {
+
+  if (!time) {
+    return null;
+  }
+
+
+  const [
+    hours,
+    minutes
+  ] =
+    time
+      .split(":")
+      .map(Number);
+
+
+  return (
+    hours * 60 +
+    minutes
+  );
+
+}
+
+
+// ============================================
+// HubSpot datetime -> Nederlandse datum
+// ============================================
+
+function getAmsterdamDateString(
+  value
+) {
+
+  if (!value) {
+    return null;
+  }
+
+
+  const numeric =
+    Number(value);
+
+
+  const date =
+    Number.isNaN(numeric)
+      ? new Date(value)
+      : new Date(numeric);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return null;
+  }
+
+
+  return new Intl.DateTimeFormat(
+    "en-CA",
+    {
+      year:
+        "numeric",
+
+      month:
+        "2-digit",
+
+      day:
+        "2-digit",
+
+      timeZone:
+        "Europe/Amsterdam"
+    }
+  ).format(date);
+
+}
+
+
+// ============================================
+// HubSpot datetime -> minuten sinds 00:00
+// ============================================
+
+function getAmsterdamMinutes(
+  value
+) {
+
+  if (!value) {
+    return null;
+  }
+
+
+  const numeric =
+    Number(value);
+
+
+  const date =
+    Number.isNaN(numeric)
+      ? new Date(value)
+      : new Date(numeric);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return null;
+  }
+
+
+  const parts =
+    new Intl.DateTimeFormat(
+      "nl-NL",
+      {
+
+        hour:
+          "2-digit",
+
+        minute:
+          "2-digit",
+
+        hour12:
+          false,
+
+        timeZone:
+          "Europe/Amsterdam"
+
+      }
+    ).formatToParts(date);
+
+
+  const hour =
+    Number(
+      parts.find(
+        part =>
+          part.type === "hour"
+      )?.value
+    );
+
+
+  const minute =
+    Number(
+      parts.find(
+        part =>
+          part.type === "minute"
+      )?.value
+    );
+
+
+  return (
+    hour * 60 +
+    minute
+  );
+
+}
+
+
+// ============================================
+// Boekingen voorbereiden voor travel-check
+// ============================================
+
+function prepareBookingsForDate(
+  bookings,
+  selectedDate,
+  excludeTicketId
+) {
+
+  return (
+    bookings.results ||
+    []
+  )
+    .filter(
+      ticket => {
+
+        if (
+          excludeTicketId &&
+          String(ticket.id) ===
+          String(excludeTicketId)
+        ) {
+
+          return false;
+
+        }
+
+
+        const properties =
+          ticket.properties ||
+          {};
+
+
+        if (
+          !properties.afspraak_start ||
+          !properties.afspraak_einde
+        ) {
+
+          return false;
+
+        }
+
+
+        const bookingDate =
+          getAmsterdamDateString(
+            properties.afspraak_start
+          );
+
+
+        return (
+          bookingDate ===
+          selectedDate
+        );
+
+      }
+    )
+    .map(
+      ticket => {
+
+        const properties =
+          ticket.properties ||
+          {};
+
+
+        return {
+
+          id:
+            ticket.id,
+
+          address:
+            properties.adres ||
+            "",
+
+          startMinutes:
+            getAmsterdamMinutes(
+              properties.afspraak_start
+            ),
+
+          endMinutes:
+            getAmsterdamMinutes(
+              properties.afspraak_einde
+            ),
+
+          raw:
+            ticket
+
+        };
+
+      }
+    )
+    .filter(
+      booking =>
+        booking.startMinutes !== null &&
+        booking.endMinutes !== null
+    )
+    .sort(
+      (a, b) =>
+        a.startMinutes -
+        b.startMinutes
+    );
+
+}
+
+
+// ============================================
+// Vorige boeking zoeken
+// ============================================
+
+function findPreviousBooking(
+  bookings,
+  slotStart
+) {
+
+  let previous =
+    null;
+
+
+  for (
+    const booking of bookings
+  ) {
+
+    if (
+      booking.endMinutes <=
+      slotStart
+    ) {
+
+      if (
+        !previous ||
+        booking.endMinutes >
+        previous.endMinutes
+      ) {
+
+        previous =
+          booking;
+
+      }
+
+    }
+
+  }
+
+
+  return previous;
+
+}
+
+
+// ============================================
+// Volgende boeking zoeken
+// ============================================
+
+function findNextBooking(
+  bookings,
+  slotEnd
+) {
+
+  let next =
+    null;
+
+
+  for (
+    const booking of bookings
+  ) {
+
+    if (
+      booking.startMinutes >=
+      slotEnd
+    ) {
+
+      if (
+        !next ||
+        booking.startMinutes <
+        next.startMinutes
+      ) {
+
+        next =
+          booking;
+
+      }
+
+    }
+
+  }
+
+
+  return next;
+
+}
+
+
+// ============================================
+// Handler
+// ============================================
+
+export default async function handler(
+  req,
+  res
+) {
+
+  if (
+    enableCors(
+      req,
+      res
+    )
+  ) {
     return;
   }
 
 
-  if (req.method !== "POST") {
+  if (
+    req.method !==
+    "POST"
+  ) {
 
-    return res.status(405).json({
-      success: false,
-      error: "Method not allowed"
-    });
+    return res
+      .status(405)
+      .json({
+
+        success:
+          false,
+
+        error:
+          "Method not allowed"
+
+      });
 
   }
 
@@ -38,11 +412,16 @@ export default async function handler(req, res) {
   try {
 
     const {
+
       latitude,
       longitude,
+
       diensten = [],
+
       date,
+
       exclude_ticket_id
+
     } = req.body;
 
 
@@ -57,47 +436,69 @@ export default async function handler(req, res) {
       longitude === null
     ) {
 
-      return res.status(400).json({
-        success: false,
-        error: "Latitude en longitude ontbreken."
-      });
+      return res
+        .status(400)
+        .json({
+
+          success:
+            false,
+
+          error:
+            "Latitude en longitude ontbreken."
+
+        });
 
     }
+
+
+    /*
+     * selectedDate houden we bewust
+     * als YYYY-MM-DD.
+     */
+
+    const selectedDate =
+      date ||
+      new Intl.DateTimeFormat(
+        "en-CA",
+        {
+          timeZone:
+            "Europe/Amsterdam"
+        }
+      ).format(
+        new Date()
+      );
 
 
     const searchDate =
-      date
-        ? new Date(date)
-        : new Date();
+      new Date(
+        `${selectedDate}T12:00:00`
+      );
 
 
-    if (
-      Number.isNaN(
-        searchDate.getTime()
-      )
-    ) {
+    console.log(
+      "================================"
+    );
 
-      return res.status(400).json({
-        success: false,
-        error: "Ongeldige datum."
-      });
+    console.log(
+      "SEARCH DATE"
+    );
 
-    }
-
-
-    console.log("================================");
-    console.log("SEARCH DATE");
-    console.log(searchDate);
-    console.log(searchDate.toISOString());
-    console.log(searchDate.toString());
+    console.log(
+      selectedDate
+    );
 
 
     // ==========================================
-    // Planner instellingen uit HubSpot
+    // Planner settings
     // ==========================================
 
-    console.log("================================");
-    console.log("PLANNER SETTINGS OPHALEN");
+    console.log(
+      "================================"
+    );
+
+    console.log(
+      "PLANNER SETTINGS OPHALEN"
+    );
 
 
     const plannerSettings =
@@ -105,9 +506,13 @@ export default async function handler(req, res) {
 
 
     const {
+
       slotIntervalMinutes,
+
       bookingDurationMinutes
-    } = plannerSettings;
+
+    } =
+      plannerSettings;
 
 
     console.log(
@@ -130,69 +535,179 @@ export default async function handler(req, res) {
       await getPhotographers();
 
 
-    console.log("=== ALLE FOTOGRAFEN ===");
-    console.log(fotografen);
+    console.log(
+      "=== ALLE FOTOGRAFEN ==="
+    );
+
+    console.log(
+      fotografen
+    );
 
 
     // ==========================================
     // Diensten filteren
     // ==========================================
 
-    console.log("================================");
-    console.log("GEVRAAGDE DIENSTEN");
-    console.log(diensten);
-
-
     const geschikteFotografen =
       fotografen.filter(
         fotograaf => {
 
           const beschikbareDiensten =
-            (fotograaf.diensten || "")
+            (
+              fotograaf.diensten ||
+              ""
+            )
               .split(";")
               .filter(Boolean);
 
 
-          console.log("--------------------------------");
-          console.log(
-            "Fotograaf:",
-            fotograaf.firstname
+          return diensten.every(
+            dienst =>
+              beschikbareDiensten.includes(
+                dienst
+              )
           );
-
-
-          console.log(
-            "Beschikbaar:",
-            beschikbareDiensten
-          );
-
-
-          const match =
-            diensten.every(
-              dienst =>
-                beschikbareDiensten.includes(
-                  dienst
-                )
-            );
-
-
-          console.log(
-            "MATCH:",
-            match
-          );
-
-
-          return match;
 
         }
       );
 
 
-    console.log("=== NA DIENSTENFILTER ===");
-    console.log(geschikteFotografen);
+    // ==========================================
+    // Geocode cache
+    //
+    // Zelfde adres hoeft tijdens één request
+    // maar één keer naar Google.
+    // ==========================================
+
+    const geocodeCache =
+      new Map();
+
+
+    async function getCoordinates(
+      address
+    ) {
+
+      if (!address) {
+        return null;
+      }
+
+
+      const key =
+        address
+          .trim()
+          .toLowerCase();
+
+
+      if (
+        geocodeCache.has(
+          key
+        )
+      ) {
+
+        return geocodeCache.get(
+          key
+        );
+
+      }
+
+
+      try {
+
+        const coordinates =
+          await geocodeAddress(
+            address
+          );
+
+
+        geocodeCache.set(
+          key,
+          coordinates
+        );
+
+
+        return coordinates;
+
+
+      } catch (error) {
+
+        console.error(
+          "Adres kon niet worden geocodeerd:",
+          address,
+          error
+        );
+
+
+        geocodeCache.set(
+          key,
+          null
+        );
+
+
+        return null;
+
+      }
+
+    }
 
 
     // ==========================================
-    // Matching
+    // Route cache
+    // ==========================================
+
+    const travelCache =
+      new Map();
+
+
+    async function getCachedTravel(
+      fromLat,
+      fromLng,
+      toLat,
+      toLng
+    ) {
+
+      const key = [
+        Number(fromLat).toFixed(5),
+        Number(fromLng).toFixed(5),
+        Number(toLat).toFixed(5),
+        Number(toLng).toFixed(5)
+      ].join("|");
+
+
+      if (
+        travelCache.has(
+          key
+        )
+      ) {
+
+        return travelCache.get(
+          key
+        );
+
+      }
+
+
+      const travel =
+        await getTravelInfo(
+          fromLat,
+          fromLng,
+          toLat,
+          toLng
+        );
+
+
+      travelCache.set(
+        key,
+        travel
+      );
+
+
+      return travel;
+
+    }
+
+
+    // ==========================================
+    // Fotografen verwerken
     // ==========================================
 
     const resultaten =
@@ -203,7 +718,10 @@ export default async function handler(req, res) {
 
             try {
 
-              console.log("================================");
+              console.log(
+                "================================"
+              );
+
               console.log(
                 "Fotograaf:",
                 fotograaf.firstname,
@@ -212,16 +730,11 @@ export default async function handler(req, res) {
 
 
               // ======================================
-              // Stap 1 - Reistijd
+              // Stap 1 - Thuis -> nieuwe locatie
               // ======================================
 
-              console.log(
-                "Stap 1 - Reistijd"
-              );
-
-
               const travel =
-                await getTravelInfo(
+                await getCachedTravel(
 
                   fotograaf.latitude,
 
@@ -234,18 +747,13 @@ export default async function handler(req, res) {
                 );
 
 
-              console.log(
-                travel
-              );
-
-
               if (
                 travel.travel_minutes >
                 fotograaf.max_reistijd_minuten
               ) {
 
                 console.log(
-                  "Afgevallen wegens reistijd"
+                  "Afgevallen wegens max reistijd"
                 );
 
 
@@ -258,30 +766,15 @@ export default async function handler(req, res) {
               // Stap 2 - Availability
               // ======================================
 
-              console.log(
-                "Stap 2 - Availability"
-              );
-
-
               const availability =
                 await getAvailability(
                   fotograaf.id
                 );
 
 
-              console.log(
-                availability
-              );
-
-
               // ======================================
               // Stap 3 - Blocks
               // ======================================
-
-              console.log(
-                "Stap 3 - Blocks"
-              );
-
 
               const blocks =
                 await getBlocks(
@@ -289,19 +782,9 @@ export default async function handler(req, res) {
                 );
 
 
-              console.log(
-                blocks
-              );
-
-
               // ======================================
-              // Stap 4 - HubSpot boekingen
+              // Stap 4 - Boekingen
               // ======================================
-
-              console.log(
-                "Stap 4 - Bookings"
-              );
-
 
               const bookings =
                 await getBookings(
@@ -309,25 +792,11 @@ export default async function handler(req, res) {
                 );
 
 
-              console.log(
-                bookings
-              );
-
-
               // ======================================
               // Stap 5 - unavailablePeriods
               // ======================================
 
-              console.log(
-                "Stap 5 - Unavailable"
-              );
-
-
               const unavailablePeriods = [
-
-                // ----------------------------------
-                // Supabase blocks
-                // ----------------------------------
 
                 ...blocks.map(
                   block => ({
@@ -342,18 +811,13 @@ export default async function handler(req, res) {
                 ),
 
 
-                // ----------------------------------
-                // HubSpot boekingen
-                // ----------------------------------
-
-                ...(bookings.results || [])
+                ...(
+                  bookings.results ||
+                  []
+                )
 
                   .filter(
                     ticket => {
-
-                      // Bij wijzigen:
-                      // huidige boeking niet tegen
-                      // zichzelf laten botsen.
 
                       if (
                         exclude_ticket_id &&
@@ -369,7 +833,6 @@ export default async function handler(req, res) {
                       return (
                         ticket.properties
                           .afspraak_start &&
-
                         ticket.properties
                           .afspraak_einde
                       );
@@ -394,38 +857,11 @@ export default async function handler(req, res) {
               ];
 
 
-              console.log("================================");
-              console.log("BLOCKS");
-              console.log(
-                JSON.stringify(
-                  blocks,
-                  null,
-                  2
-                )
-              );
-
-
-              console.log("================================");
-              console.log("UNAVAILABLE PERIODS");
-              console.log(
-                JSON.stringify(
-                  unavailablePeriods,
-                  null,
-                  2
-                )
-              );
-
-
               // ======================================
-              // Stap 6 - Planner
+              // Stap 6 - Basisslots
               // ======================================
 
-              console.log(
-                "Stap 6 - Planner"
-              );
-
-
-              const slots =
+              const baseSlots =
                 getAvailableSlots(
 
                   availability,
@@ -442,64 +878,271 @@ export default async function handler(req, res) {
 
 
               if (
-                slots.length === 0
+                !baseSlots.length
               ) {
-
-                console.log("================================");
-                console.log("FOTOGRAAF AFGEWEZEN");
-
-
-                console.log(
-                  "Naam:",
-                  fotograaf.firstname,
-                  fotograaf.lastname
-                );
-
-
-                console.log(
-                  "ID:",
-                  fotograaf.id
-                );
-
-
-                console.log(
-                  "Travel:",
-                  travel.travel_minutes
-                );
-
-
-                console.log(
-                  "Availability:",
-                  availability
-                );
-
-
-                console.log(
-                  "Blocks:",
-                  blocks.length
-                );
-
-
-                console.log(
-                  "Bookings:",
-                  bookings.results?.length || 0
-                );
-
-
-                console.log(
-                  "Slots:",
-                  slots
-                );
-
 
                 return null;
 
               }
 
 
-              console.log("================================");
-              console.log("SLOTS");
-              console.log(slots);
+              // ======================================
+              // Boekingen van geselecteerde dag
+              // voorbereiden
+              // ======================================
+
+              const dayBookings =
+                prepareBookingsForDate(
+
+                  bookings,
+
+                  selectedDate,
+
+                  exclude_ticket_id
+
+                );
+
+
+              console.log(
+                "DAY BOOKINGS:",
+                dayBookings
+              );
+
+
+              // ======================================
+              // Stap 7 - Reistijd tussen afspraken
+              // ======================================
+
+              const slotsWithTravel =
+                [];
+
+
+              for (
+                const slot of baseSlots
+              ) {
+
+                const slotStart =
+                  timeToMinutes(
+                    slot.start
+                  );
+
+
+                const slotEnd =
+                  timeToMinutes(
+                    slot.end
+                  );
+
+
+                const previousBooking =
+                  findPreviousBooking(
+                    dayBookings,
+                    slotStart
+                  );
+
+
+                const nextBooking =
+                  findNextBooking(
+                    dayBookings,
+                    slotEnd
+                  );
+
+
+                let valid =
+                  true;
+
+
+                // ==================================
+                // VORIGE BOEKING -> NIEUWE BOEKING
+                // ==================================
+
+                if (
+                  previousBooking
+                ) {
+
+                  if (
+                    !previousBooking.address
+                  ) {
+
+                    console.warn(
+                      "Vorige boeking heeft geen adres:",
+                      previousBooking.id
+                    );
+
+
+                    valid =
+                      false;
+
+                  } else {
+
+                    const previousCoordinates =
+                      await getCoordinates(
+                        previousBooking.address
+                      );
+
+
+                    if (
+                      !previousCoordinates
+                    ) {
+
+                      valid =
+                        false;
+
+                    } else {
+
+                      const travelFromPrevious =
+                        await getCachedTravel(
+
+                          previousCoordinates.latitude,
+
+                          previousCoordinates.longitude,
+
+                          latitude,
+
+                          longitude
+
+                        );
+
+
+                      const firstPossibleStart =
+                        previousBooking.endMinutes +
+                        travelFromPrevious.travel_minutes;
+
+
+                      console.log(
+                        `Slot ${slot.start}: vorige eindigt ${previousBooking.endMinutes}, reistijd ${travelFromPrevious.travel_minutes}, beschikbaar vanaf ${firstPossibleStart}`
+                      );
+
+
+                      if (
+                        slotStart <
+                        firstPossibleStart
+                      ) {
+
+                        valid =
+                          false;
+
+                      }
+
+                    }
+
+                  }
+
+                }
+
+
+                if (!valid) {
+                  continue;
+                }
+
+
+                // ==================================
+                // NIEUWE BOEKING -> VOLGENDE BOEKING
+                // ==================================
+
+                if (
+                  nextBooking
+                ) {
+
+                  if (
+                    !nextBooking.address
+                  ) {
+
+                    console.warn(
+                      "Volgende boeking heeft geen adres:",
+                      nextBooking.id
+                    );
+
+
+                    valid =
+                      false;
+
+                  } else {
+
+                    const nextCoordinates =
+                      await getCoordinates(
+                        nextBooking.address
+                      );
+
+
+                    if (
+                      !nextCoordinates
+                    ) {
+
+                      valid =
+                        false;
+
+                    } else {
+
+                      const travelToNext =
+                        await getCachedTravel(
+
+                          latitude,
+
+                          longitude,
+
+                          nextCoordinates.latitude,
+
+                          nextCoordinates.longitude
+
+                        );
+
+
+                      const latestPossibleEnd =
+                        nextBooking.startMinutes -
+                        travelToNext.travel_minutes;
+
+
+                      console.log(
+                        `Slot ${slot.start}: nieuwe eindigt ${slotEnd}, reistijd naar volgende ${travelToNext.travel_minutes}, moet uiterlijk ${latestPossibleEnd} eindigen`
+                      );
+
+
+                      if (
+                        slotEnd >
+                        latestPossibleEnd
+                      ) {
+
+                        valid =
+                          false;
+
+                      }
+
+                    }
+
+                  }
+
+                }
+
+
+                if (
+                  valid
+                ) {
+
+                  slotsWithTravel.push(
+                    slot
+                  );
+
+                }
+
+              }
+
+
+              // ======================================
+              // Geen geldige slots meer
+              // ======================================
+
+              if (
+                !slotsWithTravel.length
+              ) {
+
+                console.log(
+                  "Fotograaf heeft geen slots na reistijd-check."
+                );
+
+
+                return null;
+
+              }
 
 
               // ======================================
@@ -533,7 +1176,8 @@ export default async function handler(req, res) {
                 bookings:
                   bookings.results,
 
-                slots
+                slots:
+                  slotsWithTravel
 
               };
 
@@ -542,13 +1186,15 @@ export default async function handler(req, res) {
 
             catch (error) {
 
-              console.error("================================");
+              console.error(
+                "================================"
+              );
+
               console.error(
                 "FOUT BIJ:",
                 fotograaf.firstname,
                 fotograaf.lastname
               );
-
 
               console.error(
                 error
@@ -566,7 +1212,7 @@ export default async function handler(req, res) {
 
 
     // ==========================================
-    // Resultaten
+    // Resultaten sorteren op reistijd
     // ==========================================
 
     const matches =
@@ -581,32 +1227,27 @@ export default async function handler(req, res) {
         );
 
 
-    console.log(
-      "=== EINDRESULTAAT ==="
-    );
+    return res
+      .status(200)
+      .json({
 
+        success:
+          true,
 
-    console.log(
-      matches
-    );
+        planner_settings: {
 
+          slot_interval_minutes:
+            slotIntervalMinutes,
 
-    return res.status(200).json({
+          booking_duration_minutes:
+            bookingDurationMinutes
 
-      success: true,
+        },
 
-      planner_settings: {
-        slot_interval_minutes:
-          slotIntervalMinutes,
+        photographers:
+          matches
 
-        booking_duration_minutes:
-          bookingDurationMinutes
-      },
-
-      photographers:
-        matches
-
-    });
+      });
 
   }
 
@@ -619,14 +1260,17 @@ export default async function handler(req, res) {
     );
 
 
-    return res.status(500).json({
+    return res
+      .status(500)
+      .json({
 
-      success: false,
+        success:
+          false,
 
-      error:
-        error.message
+        error:
+          error.message
 
-    });
+      });
 
   }
 
