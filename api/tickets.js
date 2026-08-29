@@ -195,6 +195,64 @@ export default async function handler(req, res) {
 
     }
 
+// Update notes
+         if (action === "update-note") {
+
+  if (
+    !ticket_id ||
+    !contact_id
+  ) {
+
+    return res.status(400).json({
+      success: false,
+      error: "ticket_id en contact_id zijn verplicht"
+    });
+
+  }
+
+
+  const associations =
+    await getTicketAssociations(
+      ticket_id,
+      "contacts"
+    );
+
+
+  const allowed =
+    (associations.results || [])
+      .some(
+        item =>
+          String(item.toObjectId) ===
+          String(contact_id)
+      );
+
+
+  if (!allowed) {
+
+    return res.status(403).json({
+      success: false,
+      error: "Geen toegang tot deze boeking"
+    });
+
+  }
+
+
+  const updated =
+    await updateTicket(
+      ticket_id,
+      {
+        opmerking_klant:
+          opmerking_klant || ""
+      }
+    );
+
+
+  return res.status(200).json({
+    success: true,
+    ticket: updated
+  });
+
+}
 
     /*
      * =====================================
@@ -253,6 +311,11 @@ export default async function handler(req, res) {
         });
 
     }
+
+
+
+
+         
 
 
     return res.status(400).json({
