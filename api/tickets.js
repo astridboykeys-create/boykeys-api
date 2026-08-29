@@ -1,10 +1,11 @@
 import { enableCors } from "../lib/cors.js";
 
 import {
-    getMyJobs,
-    getMyOrders,
-    updateTicket,
-    getTicketAssociations
+  getMyJobs,
+  getMyOrders,
+  updateTicket,
+  getTicketAssociations,
+  getServiceOptions
 } from "../lib/hubspot.js";
 
 
@@ -27,6 +28,18 @@ export default async function handler(req, res) {
                 contact_id
             } = req.query;
 
+
+            if (action === "services") {
+
+  const services =
+    await getServiceOptions();
+
+  return res.status(200).json({
+    success: true,
+    services
+  });
+
+}
 
             // FOTOGRAAF
             if (action === "my-jobs") {
