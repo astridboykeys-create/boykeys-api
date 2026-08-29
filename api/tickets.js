@@ -100,123 +100,153 @@ export default async function handler(req, res) {
         // POST
         // =========================================
 
-        if (req.method === "POST") {
+       if (req.method === "POST") {
 
-            const {
-                action,
+    const {
+        action,
+        ticket_id,
+        contact_id,
+        address,
+        diensten,
+        photographer_id,
+        start,
+        end
+    } = req.body;
+
+
+    if (!ticket_id || !contact_id) {
+
+        return res.status(400).json({
+            success: false,
+            error:
+                "ticket_id en contact_id zijn verplicht"
+        });
+
+    }
+
+
+    /*
+     * Controleren of deze boeking
+     * echt bij deze makelaar hoort.
+     */
+
+    const associations =
+        await getTicketAssociations(
+            ticket_id,
+            "contacts"
+        );
+
+
+    const allowed =
+        (associations.results || [])
+            .some(item =>
+                String(item.toObjectId) ===
+                String(contact_id)
+            );
+
+
+    if (!allowed) {
+
+        return res.status(403).json({
+            success: false,
+            error:
+                "Geen toegang tot deze boeking"
+        });
+
+    }
+
+
+    /*
+     * =====================================
+     * BOEKING ANNULEREN
+     * =====================================
+     */
+
+    if (action === "cancel-order") {
+
+        const updated =
+            await updateTicket(
                 ticket_id,
-                contact_id,
-                address,
-                diensten,
-                photographer_id,
-                start,
-                end
-            } = req.body;
+                {
+                    hs_pipeline_stage: "4"
+                }
+            );
 
 
-            if (action !== "update-order") {
+        return res.status(200).json({
+            success: true,
+            cancelled: true,
+            ticket: updated
+        });
 
-                return res.status(400).json({
-                    success: false,
-                    error: "Onbekende actie"
-                });
-
-            }
-
-
-            if (
-                !ticket_id ||
-                !contact_id ||
-                !address ||
-                !photographer_id ||
-                !start ||
-                !end
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    error:
-                        "Niet alle verplichte velden zijn ingevuld"
-
-                });
-
-            }
+    }
 
 
-            // =====================================
-            // Eigenaar controleren
-            // =====================================
+    /*
+     * =====================================
+     * BOEKING WIJZIGEN
+     * =====================================
+     */
 
-            const associations =
-                await getTicketAssociations(
-                    ticket_id,
-                    "contacts"
-                );
+    if (action === "update-order") {
 
+        if (
+            !address ||
+            !photographer_id ||
+            !start ||
+            !end
+        ) {
 
-            const allowed =
-                (associations.results || [])
-                    .some(item =>
-                        String(item.toObjectId) ===
-                        String(contact_id)
-                    );
-
-
-            if (!allowed) {
-
-                return res.status(403).json({
-
-                    success: false,
-
-                    error:
-                        "Geen toegang tot deze boeking"
-
-                });
-
-            }
-
-
-            // =====================================
-            // Ticket wijzigen
-            // =====================================
-
-            const updated =
-                await updateTicket(
-                    ticket_id,
-                    {
-
-                        adres:
-                            address,
-
-                        diensten:
-                            Array.isArray(diensten)
-                                ? diensten.join(";")
-                                : diensten,
-
-                        selected_photographer_id:
-                            String(photographer_id),
-
-                        afspraak_start:
-                            String(start),
-
-                        afspraak_einde:
-                            String(end)
-
-                    }
-                );
-
-
-            return res.status(200).json({
-
-                success: true,
-
-                ticket: updated
-
+            return res.status(400).json({
+                success: false,
+                error:
+                    "Niet alle verplichte velden zijn ingevuld"
             });
 
         }
+
+
+        const updated =
+            await updateTicket(
+                ticket_id,
+                {
+                    adres:
+                        address,
+
+                    diensten:
+                        Array.isArray(diensten)
+                            ? diensten.join(";")
+                            : diensten,
+
+                    selected_photographer_id:
+                        String(
+                            photographer_id
+                        ),
+
+                    afspraak_start:
+                        String(start),
+
+                    afspraak_einde:
+                        String(end)
+                }
+            );
+
+
+        return res.status(200).json({
+            success: true,
+            ticket: updated
+        });
+
+    }
+
+
+    return res.status(400).json({
+        success: false,
+        error:
+            "Onbekende actie"
+    });
+
+}
 
 
         return res.status(405).json({
