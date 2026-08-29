@@ -115,16 +115,17 @@ export default async function handler(req, res) {
 
        if (req.method === "POST") {
 
-    const {
-        action,
-        ticket_id,
-        contact_id,
-        address,
-        diensten,
-        photographer_id,
-        start,
-        end
-    } = req.body;
+   const {
+  action,
+  ticket_id,
+  contact_id,
+  address,
+  diensten,
+  opmerking_klant,
+  photographer_id,
+  start,
+  end
+} = req.body;
 
 
     if (!ticket_id || !contact_id) {
@@ -220,29 +221,30 @@ export default async function handler(req, res) {
 
 
         const updated =
-            await updateTicket(
-                ticket_id,
-                {
-                    adres:
-                        address,
+  await updateTicket(
+    ticket_id,
+    {
+      adres:
+        address,
 
-                    diensten:
-                        Array.isArray(diensten)
-                            ? diensten.join(";")
-                            : diensten,
+      diensten:
+        Array.isArray(diensten)
+          ? diensten.join(";")
+          : diensten,
 
-                    selected_photographer_id:
-                        String(
-                            photographer_id
-                        ),
+      opmerking_klant:
+        opmerking_klant || "",
 
-                    afspraak_start:
-                        String(start),
+      selected_photographer_id:
+        String(photographer_id),
 
-                    afspraak_einde:
-                        String(end)
-                }
-            );
+      afspraak_start:
+        String(start),
+
+      afspraak_einde:
+        String(end)
+    }
+  );
 
 
         return res.status(200).json({
