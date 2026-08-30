@@ -98,7 +98,7 @@ export default async function handler(req, res) {
       "0",
 
     hs_pipeline_stage:
-      "1",
+      "2",
 
     adres:
       address,
