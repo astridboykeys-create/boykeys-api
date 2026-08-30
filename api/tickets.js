@@ -8,7 +8,12 @@ import {
   getServiceOptions,
   getTicket,
   getContact,
-  getBookings
+  getBookings,
+
+  STAGE_REVIEW,
+  STAGE_APPROVED,
+  STAGE_REJECTED,
+  STAGE_CANCELLED
 } from "../lib/hubspot.js";
 
 import {
@@ -26,7 +31,7 @@ import {
 
 
 // ============================================
-// ALGEMENE HELPERS
+// HELPERS
 // ============================================
 
 const DAY_KEYS = [
@@ -40,7 +45,9 @@ const DAY_KEYS = [
 ];
 
 
-function normalizeEpoch(value) {
+function normalizeEpoch(
+  value
+) {
 
   if (
     value === undefined ||
@@ -50,28 +57,40 @@ function normalizeEpoch(value) {
     return null;
   }
 
+
   const numeric =
     Number(value);
 
+
   if (
-    Number.isFinite(numeric) &&
+    Number.isFinite(
+      numeric
+    ) &&
     numeric > 0
   ) {
+
     return numeric;
+
   }
+
 
   const date =
     new Date(value);
+
 
   if (
     Number.isNaN(
       date.getTime()
     )
   ) {
+
     return null;
+
   }
 
+
   return date.getTime();
+
 }
 
 
@@ -81,10 +100,15 @@ function validatePlannerTimes(
 ) {
 
   const startMs =
-    normalizeEpoch(start);
+    normalizeEpoch(
+      start
+    );
+
 
   const endMs =
-    normalizeEpoch(end);
+    normalizeEpoch(
+      end
+    );
 
 
   if (
@@ -119,6 +143,7 @@ function validatePlannerTimes(
     startMs,
     endMs
   };
+
 }
 
 
@@ -126,77 +151,113 @@ function validatePlannerTimes(
 // AMSTERDAM DATUM/TIJD
 // ============================================
 
-function getAmsterdamDate(value) {
+function getAmsterdamDate(
+  value
+) {
 
   const date =
     new Date(value);
+
 
   if (
     Number.isNaN(
       date.getTime()
     )
   ) {
+
     return null;
+
   }
+
 
   return new Intl.DateTimeFormat(
     "en-CA",
     {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
+      year:
+        "numeric",
+
+      month:
+        "2-digit",
+
+      day:
+        "2-digit",
+
       timeZone:
         "Europe/Amsterdam"
     }
   ).format(date);
+
 }
 
 
-function getAmsterdamTime(value) {
+function getAmsterdamTime(
+  value
+) {
 
   const date =
     new Date(value);
+
 
   if (
     Number.isNaN(
       date.getTime()
     )
   ) {
+
     return null;
+
   }
+
 
   const parts =
     new Intl.DateTimeFormat(
       "nl-NL",
       {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
+        hour:
+          "2-digit",
+
+        minute:
+          "2-digit",
+
+        hour12:
+          false,
+
         timeZone:
           "Europe/Amsterdam"
       }
-    ).formatToParts(date);
+    ).formatToParts(
+      date
+    );
+
 
   const hour =
     parts.find(
       part =>
-        part.type === "hour"
+        part.type ===
+        "hour"
     )?.value;
+
 
   const minute =
     parts.find(
       part =>
-        part.type === "minute"
+        part.type ===
+        "minute"
     )?.value;
+
 
   if (
     hour === undefined ||
     minute === undefined
   ) {
+
     return null;
+
   }
 
+
   return `${hour}:${minute}`;
+
 }
 
 
@@ -213,6 +274,7 @@ function getDayKey(
       .split("-")
       .map(Number);
 
+
   const date =
     new Date(
       Date.UTC(
@@ -225,9 +287,11 @@ function getDayKey(
       )
     );
 
+
   return DAY_KEYS[
     date.getUTCDay()
   ];
+
 }
 
 
@@ -240,25 +304,45 @@ function getTimeZoneOffsetMs(
     new Intl.DateTimeFormat(
       "en-CA",
       {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hourCycle: "h23",
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+
+        hour:
+          "2-digit",
+
+        minute:
+          "2-digit",
+
+        second:
+          "2-digit",
+
+        hourCycle:
+          "h23",
+
         timeZone
       }
-    ).formatToParts(date);
+    ).formatToParts(
+      date
+    );
 
-  const values = {};
+
+  const values =
+    {};
+
 
   for (
     const part of parts
   ) {
 
     if (
-      part.type !== "literal"
+      part.type !==
+      "literal"
     ) {
 
       values[
@@ -272,6 +356,7 @@ function getTimeZoneOffsetMs(
 
   }
 
+
   const asUtc =
     Date.UTC(
       values.year,
@@ -282,10 +367,12 @@ function getTimeZoneOffsetMs(
       values.second
     );
 
+
   return (
     asUtc -
     date.getTime()
   );
+
 }
 
 
@@ -303,6 +390,7 @@ function createAmsterdamDate(
       .split("-")
       .map(Number);
 
+
   const [
     hour,
     minute
@@ -310,6 +398,7 @@ function createAmsterdamDate(
     timeString
       .split(":")
       .map(Number);
+
 
   const naiveUtc =
     Date.UTC(
@@ -321,10 +410,12 @@ function createAmsterdamDate(
       0
     );
 
+
   let candidate =
     new Date(
       naiveUtc
     );
+
 
   let offset =
     getTimeZoneOffsetMs(
@@ -332,17 +423,20 @@ function createAmsterdamDate(
       "Europe/Amsterdam"
     );
 
+
   candidate =
     new Date(
       naiveUtc -
       offset
     );
 
+
   const correctedOffset =
     getTimeZoneOffsetMs(
       candidate,
       "Europe/Amsterdam"
     );
+
 
   if (
     correctedOffset !==
@@ -357,12 +451,14 @@ function createAmsterdamDate(
 
   }
 
+
   return candidate;
+
 }
 
 
 // ============================================
-// BLOKKADES / HERHALING
+// REPEATING BLOCKS
 // ============================================
 
 function normalizeRepeatDays(
@@ -373,19 +469,28 @@ function normalizeRepeatDays(
     return [];
   }
 
+
   if (
-    Array.isArray(value)
+    Array.isArray(
+      value
+    )
   ) {
+
     return value;
+
   }
 
-  return String(value)
+
+  return String(
+    value
+  )
     .split(";")
     .map(
       value =>
         value.trim()
     )
     .filter(Boolean);
+
 }
 
 
@@ -394,7 +499,9 @@ function expandBlocksForDate(
   selectedDate
 ) {
 
-  const result = [];
+  const result =
+    [];
+
 
   const selectedDay =
     getDayKey(
@@ -412,12 +519,9 @@ function expandBlocksForDate(
       "none";
 
 
-    // ========================================
-    // EENMALIG
-    // ========================================
-
     if (
-      repeatType === "none"
+      repeatType ===
+      "none"
     ) {
 
       result.push(
@@ -429,15 +533,13 @@ function expandBlocksForDate(
     }
 
 
-    // ========================================
-    // WEEKLY
-    // ========================================
-
     if (
       repeatType !==
       "weekly"
     ) {
+
       continue;
+
     }
 
 
@@ -452,7 +554,9 @@ function expandBlocksForDate(
         selectedDay
       )
     ) {
+
       continue;
+
     }
 
 
@@ -467,7 +571,9 @@ function expandBlocksForDate(
       selectedDate <
         originalStartDate
     ) {
+
       continue;
+
     }
 
 
@@ -486,7 +592,9 @@ function expandBlocksForDate(
         selectedDate >
           repeatUntilDate
       ) {
+
         continue;
+
       }
 
     }
@@ -496,6 +604,7 @@ function expandBlocksForDate(
       getAmsterdamTime(
         block.start_at
       );
+
 
     const endTime =
       getAmsterdamTime(
@@ -507,11 +616,14 @@ function expandBlocksForDate(
       !startTime ||
       !endTime
     ) {
+
       continue;
+
     }
 
 
     result.push({
+
       ...block,
 
       start_at:
@@ -525,28 +637,35 @@ function expandBlocksForDate(
           selectedDate,
           endTime
         ).toISOString()
+
     });
 
   }
 
 
   return result;
+
 }
 
 
 // ============================================
-// BOEKING HELPERS
+// BOOKING HELPERS
 // ============================================
 
-function ticketToBooking(ticket) {
+function ticketToBooking(
+  ticket
+) {
 
   const p =
-    ticket.properties || {};
+    ticket.properties ||
+    {};
+
 
   const startMs =
     normalizeEpoch(
       p.afspraak_start
     );
+
 
   const endMs =
     normalizeEpoch(
@@ -558,11 +677,14 @@ function ticketToBooking(ticket) {
     !startMs ||
     !endMs
   ) {
+
     return null;
+
   }
 
 
   return {
+
     id:
       ticket.id,
 
@@ -578,7 +700,9 @@ function ticketToBooking(ticket) {
 
     adres:
       p.adres || ""
+
   };
+
 }
 
 
@@ -593,6 +717,7 @@ function hasOverlap(
     start1 < end2 &&
     end1 > start2
   );
+
 }
 
 
@@ -614,14 +739,20 @@ function parseHomeLocation(
     latitude,
     longitude
   ] =
-    String(value)
+    String(
+      value
+    )
       .split(",")
       .map(Number);
 
 
   if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude)
+    !Number.isFinite(
+      latitude
+    ) ||
+    !Number.isFinite(
+      longitude
+    )
   ) {
 
     return {
@@ -636,6 +767,7 @@ function parseHomeLocation(
     latitude,
     longitude
   };
+
 }
 
 
@@ -652,10 +784,15 @@ async function validatePlannerBooking({
 }) {
 
   const candidateStart =
-    new Date(startMs);
+    new Date(
+      startMs
+    );
+
 
   const candidateEnd =
-    new Date(endMs);
+    new Date(
+      endMs
+    );
 
 
   const selectedDate =
@@ -711,7 +848,7 @@ async function validatePlannerBooking({
 
 
   // ========================================
-  // BESCHIKBAARHEID + BLOCKS + BOOKINGS
+  // BESCHIKBAARHEID
   // ========================================
 
   const [
@@ -737,7 +874,7 @@ async function validatePlannerBooking({
 
 
   // ========================================
-  // WERKTIJDEN
+  // WERKTIJD
   // ========================================
 
   const dayKey =
@@ -822,13 +959,15 @@ async function validatePlannerBooking({
 
 
   for (
-    const block of blocks
+    const block of
+      blocks
   ) {
 
     const blockStart =
       new Date(
         block.start_at
       );
+
 
     const blockEnd =
       new Date(
@@ -870,8 +1009,12 @@ async function validatePlannerBooking({
 
       .filter(
         ticket =>
-          String(ticket.id) !==
-          String(ticketId)
+          String(
+            ticket.id
+          ) !==
+          String(
+            ticketId
+          )
       )
 
       .map(
@@ -896,7 +1039,8 @@ async function validatePlannerBooking({
 
 
   for (
-    const booking of bookings
+    const booking of
+      bookings
   ) {
 
     if (
@@ -920,18 +1064,20 @@ async function validatePlannerBooking({
 
 
   // ========================================
-  // VORIGE EN VOLGENDE AFSPRAAK
+  // VORIGE / VOLGENDE BOEKING
   // ========================================
 
   let previousBooking =
     null;
+
 
   let nextBooking =
     null;
 
 
   for (
-    const booking of bookings
+    const booking of
+      bookings
   ) {
 
     if (
@@ -975,7 +1121,7 @@ async function validatePlannerBooking({
 
 
   // ========================================
-  // NIEUW ADRES GEOCODEN
+  // ADRES NIEUWE BOEKING
   // ========================================
 
   if (!address) {
@@ -996,11 +1142,12 @@ async function validatePlannerBooking({
 
 
   // ========================================
-  // REISTIJD NAAR NIEUWE AFSPRAAK
+  // INKOMENDE REISTIJD
   // ========================================
 
   let incomingTravel =
     null;
+
 
   let travelFrom =
     "home";
@@ -1109,7 +1256,7 @@ async function validatePlannerBooking({
 
 
   // ========================================
-  // REISTIJD NAAR VOLGENDE AFSPRAAK
+  // REISTIJD NAAR VOLGENDE
   // ========================================
 
   let travelToNext =
@@ -1148,7 +1295,7 @@ async function validatePlannerBooking({
       );
 
 
-    const requiredArrival =
+    const earliestArrival =
       new Date(
         candidateEnd.getTime() +
         travelToNext.travel_minutes *
@@ -1157,7 +1304,7 @@ async function validatePlannerBooking({
 
 
     if (
-      requiredArrival >
+      earliestArrival >
       nextBooking.start
     ) {
 
@@ -1177,6 +1324,7 @@ async function validatePlannerBooking({
     valid: true,
 
     travel: {
+
       from:
         travelFrom,
 
@@ -1199,14 +1347,16 @@ async function validatePlannerBooking({
         travelToNext
           ?.distance_km ??
         null
+
     }
 
   };
+
 }
 
 
 // ============================================
-// HANDLER
+// API HANDLER
 // ============================================
 
 export default async function handler(
@@ -1231,7 +1381,8 @@ export default async function handler(
     // =========================================
 
     if (
-      req.method === "GET"
+      req.method ===
+      "GET"
     ) {
 
       const {
@@ -1239,46 +1390,53 @@ export default async function handler(
         photographer_id,
         contact_id,
         ticket_id
-      } = req.query;
+      } =
+        req.query;
 
 
+      // =======================================
       // SERVICES
+      // =======================================
 
       if (
-        action === "services"
+        action ===
+        "services"
       ) {
 
         const services =
           await getServiceOptions();
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          services
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            services
+          });
 
       }
 
 
+      // =======================================
       // FOTOGRAAF
+      // =======================================
 
       if (
-        action === "my-jobs"
+        action ===
+        "my-jobs"
       ) {
 
         if (
           !photographer_id
         ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "photographer_id is verplicht"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "photographer_id is verplicht"
+            });
 
         }
 
@@ -1289,33 +1447,38 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          jobs:
-            jobs.results ||
-            []
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            jobs:
+              jobs.results ||
+              []
+          });
 
       }
 
 
+      // =======================================
       // MAKELAAR
+      // =======================================
 
       if (
-        action === "my-orders"
+        action ===
+        "my-orders"
       ) {
 
-        if (!contact_id) {
+        if (
+          !contact_id
+        ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "contact_id is verplicht"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "contact_id is verplicht"
+            });
 
         }
 
@@ -1326,32 +1489,36 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          orders
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            orders
+          });
 
       }
 
 
+      // =======================================
       // PLANNER TICKET
+      // =======================================
 
       if (
         action ===
         "planner-ticket"
       ) {
 
-        if (!ticket_id) {
+        if (
+          !ticket_id
+        ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "ticket_id is verplicht"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "ticket_id is verplicht"
+            });
 
         }
 
@@ -1366,7 +1533,6 @@ export default async function handler(
               "afspraak_start",
               "afspraak_einde",
               "opmerking_klant",
-              "planner_status",
               "planner_reason",
               "planner_note",
               "planner_approved_at",
@@ -1375,23 +1541,23 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          ticket
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            ticket
+          });
 
       }
 
 
-      return res.status(
-        400
-      ).json({
-        success: false,
-        error:
-          "Onbekende actie"
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            "Onbekende actie"
+        });
 
     }
 
@@ -1401,7 +1567,8 @@ export default async function handler(
     // =========================================
 
     if (
-      req.method === "POST"
+      req.method ===
+      "POST"
     ) {
 
       const {
@@ -1432,20 +1599,23 @@ export default async function handler(
         "planner-update"
       ) {
 
-        if (!ticket_id) {
+        if (
+          !ticket_id
+        ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "ticket_id is verplicht"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "ticket_id is verplicht"
+            });
 
         }
 
 
-        const properties = {};
+        const properties =
+          {};
 
 
         if (
@@ -1552,13 +1722,13 @@ export default async function handler(
             !validation.valid
           ) {
 
-            return res.status(
-              400
-            ).json({
-              success: false,
-              error:
-                validation.error
-            });
+            return res
+              .status(400)
+              .json({
+                success: false,
+                error:
+                  validation.error
+              });
 
           }
 
@@ -1577,6 +1747,15 @@ export default async function handler(
         }
 
 
+        /*
+         * Bij een wijziging blijft de boeking
+         * wachten op beoordeling.
+         */
+
+        properties.hs_pipeline_stage =
+          STAGE_REVIEW;
+
+
         const updated =
           await updateTicket(
             ticket_id,
@@ -1584,13 +1763,13 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          ticket:
-            updated
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            ticket:
+              updated
+          });
 
       }
 
@@ -1604,24 +1783,20 @@ export default async function handler(
         "planner-approve"
       ) {
 
-        if (!ticket_id) {
+        if (
+          !ticket_id
+        ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "ticket_id is verplicht"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "ticket_id is verplicht"
+            });
 
         }
 
-
-        /*
-         * Huidige ticketgegevens ophalen.
-         * Als planner niets heeft gewijzigd,
-         * gebruiken we de bestaande waarden.
-         */
 
         const currentTicket =
           await getTicket(
@@ -1631,14 +1806,14 @@ export default async function handler(
               "diensten",
               "selected_photographer_id",
               "afspraak_start",
-              "afspraak_einde"
+              "afspraak_einde",
+              "hs_pipeline_stage"
             ]
           );
 
 
         const p =
-          currentTicket
-            .properties ||
+          currentTicket.properties ||
           {};
 
 
@@ -1671,26 +1846,28 @@ export default async function handler(
           !finalPhotographerId
         ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "Geen fotograaf geselecteerd."
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "Geen fotograaf geselecteerd."
+            });
 
         }
 
 
-        if (!finalAddress) {
+        if (
+          !finalAddress
+        ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "Geen adres ingesteld."
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "Geen adres ingesteld."
+            });
 
         }
 
@@ -1706,23 +1883,24 @@ export default async function handler(
           !timeValidation.valid
         ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              timeValidation.error
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                timeValidation.error
+            });
 
         }
 
 
         // =====================================
-        // VOLLEDIGE PLANNER CHECK
+        // VOLLEDIGE PLANNER VALIDATIE
         // =====================================
 
         const plannerValidation =
           await validatePlannerBooking({
+
             ticketId:
               ticket_id,
 
@@ -1735,12 +1913,11 @@ export default async function handler(
               finalAddress,
 
             startMs:
-              timeValidation
-                .startMs,
+              timeValidation.startMs,
 
             endMs:
-              timeValidation
-                .endMs
+              timeValidation.endMs
+
           });
 
 
@@ -1748,28 +1925,32 @@ export default async function handler(
           !plannerValidation.valid
         ) {
 
-          return res.status(
-            409
-          ).json({
-            success: false,
-            validation_failed:
-              true,
-            error:
-              plannerValidation
-                .error
-          });
+          return res
+            .status(409)
+            .json({
+
+              success:
+                false,
+
+              validation_failed:
+                true,
+
+              error:
+                plannerValidation.error
+
+            });
 
         }
 
 
         // =====================================
-        // GOEDKEUREN + EVENTUELE WIJZIGINGEN
+        // GOEDGEKEURD
         // =====================================
 
         const properties = {
 
-          planner_status:
-            "approved",
+          hs_pipeline_stage:
+            STAGE_APPROVED,
 
           planner_reason:
             planner_reason ||
@@ -1794,14 +1975,12 @@ export default async function handler(
 
           afspraak_start:
             String(
-              timeValidation
-                .startMs
+              timeValidation.startMs
             ),
 
           afspraak_einde:
             String(
-              timeValidation
-                .endMs
+              timeValidation.endMs
             )
 
         };
@@ -1816,7 +1995,8 @@ export default async function handler(
               diensten
             )
               ? diensten.join(";")
-              : diensten || "";
+              : diensten ||
+                "";
 
         }
 
@@ -1828,21 +2008,23 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
+        return res
+          .status(200)
+          .json({
 
-          success: true,
+            success:
+              true,
 
-          approved: true,
+            approved:
+              true,
 
-          validation:
-            plannerValidation,
+            validation:
+              plannerValidation,
 
-          ticket:
-            updated
+            ticket:
+              updated
 
-        });
+          });
 
       }
 
@@ -1856,15 +2038,17 @@ export default async function handler(
         "planner-reject"
       ) {
 
-        if (!ticket_id) {
+        if (
+          !ticket_id
+        ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "ticket_id is verplicht"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "ticket_id is verplicht"
+            });
 
         }
 
@@ -1876,13 +2060,13 @@ export default async function handler(
           ).trim()
         ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "Een reden voor afkeuren is verplicht"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "Een reden voor afkeuren is verplicht"
+            });
 
         }
 
@@ -1892,8 +2076,8 @@ export default async function handler(
             ticket_id,
             {
 
-              planner_status:
-                "rejected",
+              hs_pipeline_stage:
+                STAGE_REJECTED,
 
               planner_reason:
                 String(
@@ -1908,20 +2092,26 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          rejected: true,
-          ticket:
-            updated
-        });
+        return res
+          .status(200)
+          .json({
+
+            success:
+              true,
+
+            rejected:
+              true,
+
+            ticket:
+              updated
+
+          });
 
       }
 
 
       // =======================================
-      // VANAF HIER MAKELAAR
+      // MAKELAAR ACTIES
       // =======================================
 
       if (
@@ -1929,13 +2119,13 @@ export default async function handler(
         !contact_id
       ) {
 
-        return res.status(
-          400
-        ).json({
-          success: false,
-          error:
-            "ticket_id en contact_id zijn verplicht"
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error:
+              "ticket_id en contact_id zijn verplicht"
+          });
 
       }
 
@@ -1962,21 +2152,23 @@ export default async function handler(
         );
 
 
-      if (!allowed) {
+      if (
+        !allowed
+      ) {
 
-        return res.status(
-          403
-        ).json({
-          success: false,
-          error:
-            "Geen toegang tot deze boeking"
-        });
+        return res
+          .status(403)
+          .json({
+            success: false,
+            error:
+              "Geen toegang tot deze boeking"
+          });
 
       }
 
 
       // =====================================
-      // BOEKING ANNULEREN
+      // ANNULEREN
       // =====================================
 
       if (
@@ -1989,25 +2181,25 @@ export default async function handler(
             ticket_id,
             {
               hs_pipeline_stage:
-                "5960765665"
+                STAGE_CANCELLED
             }
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          cancelled: true,
-          ticket:
-            updated
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            cancelled: true,
+            ticket:
+              updated
+          });
 
       }
 
 
       // =====================================
-      // NOTE
+      // OPMERKING
       // =====================================
 
       if (
@@ -2026,19 +2218,19 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          ticket:
-            updated
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            ticket:
+              updated
+          });
 
       }
 
 
       // =====================================
-      // BOEKING WIJZIGEN
+      // BOEKING WIJZIGEN MAKELAAR
       // =====================================
 
       if (
@@ -2053,13 +2245,13 @@ export default async function handler(
           !end
         ) {
 
-          return res.status(
-            400
-          ).json({
-            success: false,
-            error:
-              "Niet alle verplichte velden zijn ingevuld"
-          });
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "Niet alle verplichte velden zijn ingevuld"
+            });
 
         }
 
@@ -2068,6 +2260,17 @@ export default async function handler(
           await updateTicket(
             ticket_id,
             {
+
+              /*
+               * Als de makelaar een boeking wijzigt,
+               * moet de planner opnieuw beoordelen.
+               */
+
+              hs_pipeline_stage:
+                STAGE_REVIEW,
+
+              planner_approved_at:
+                "",
 
               adres:
                 address,
@@ -2102,38 +2305,40 @@ export default async function handler(
           );
 
 
-        return res.status(
-          200
-        ).json({
-          success: true,
-          ticket:
-            updated
-        });
+        return res
+          .status(200)
+          .json({
+            success: true,
+            ticket:
+              updated
+          });
 
       }
 
 
-      return res.status(
-        400
-      ).json({
-        success: false,
-        error:
-          "Onbekende actie"
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            "Onbekende actie"
+        });
 
     }
 
 
-    return res.status(
-      405
-    ).json({
-      success: false,
-      error:
-        "Method not allowed"
-    });
+    return res
+      .status(405)
+      .json({
+        success: false,
+        error:
+          "Method not allowed"
+      });
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     console.error(
       "TICKETS API ERROR:",
@@ -2141,13 +2346,13 @@ export default async function handler(
     );
 
 
-    return res.status(
-      500
-    ).json({
-      success: false,
-      error:
-        error.message
-    });
+    return res
+      .status(500)
+      .json({
+        success: false,
+        error:
+          error.message
+      });
 
   }
 
