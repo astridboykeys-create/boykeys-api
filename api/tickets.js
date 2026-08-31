@@ -1,6 +1,7 @@
 import { enableCors } from "../lib/cors.js";
 
 import {
+  hubspotRequest,
   getMyJobs,
   getMyOrders,
   updateTicket,
@@ -1395,6 +1396,34 @@ export default async function handler(
 
 
       // =======================================
+      // ASSOCIATION LABELS
+      // tijdelijk: IDs Fotograaf / Makelaar
+      // =======================================
+
+      if (
+        action ===
+        "association-labels"
+      ) {
+
+        const result =
+          await hubspotRequest(
+            "/crm/v4/associations/tickets/contacts/labels"
+          );
+
+
+        return res
+          .status(200)
+          .json({
+            success: true,
+            labels:
+              result.results ||
+              []
+          });
+
+      }
+
+
+      // =======================================
       // SERVICES
       // =======================================
 
@@ -1747,11 +1776,6 @@ export default async function handler(
         }
 
 
-        /*
-         * Bij een wijziging blijft de boeking
-         * wachten op beoordeling.
-         */
-
         properties.hs_pipeline_stage =
           STAGE_REVIEW;
 
@@ -1894,10 +1918,6 @@ export default async function handler(
         }
 
 
-        // =====================================
-        // VOLLEDIGE PLANNER VALIDATIE
-        // =====================================
-
         const plannerValidation =
           await validatePlannerBooking({
 
@@ -1942,10 +1962,6 @@ export default async function handler(
 
         }
 
-
-        // =====================================
-        // GOEDGEKEURD
-        // =====================================
 
         const properties = {
 
@@ -2260,11 +2276,6 @@ export default async function handler(
           await updateTicket(
             ticket_id,
             {
-
-              /*
-               * Als de makelaar een boeking wijzigt,
-               * moet de planner opnieuw beoordelen.
-               */
 
               hs_pipeline_stage:
                 STAGE_REVIEW,
