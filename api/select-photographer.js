@@ -1,15 +1,11 @@
 import { enableCors } from "../lib/cors.js";
-import { hubspotRequest } from "../lib/hubspot.js";
 
 import {
-
   findContactByEmail,
-
   createTicket,
-
   associateTicketWithContact
-
 } from "../lib/hubspot.js";
+
 
 export default async function handler(req, res) {
 
@@ -17,154 +13,161 @@ export default async function handler(req, res) {
     return;
   }
 
+
   if (req.method !== "POST") {
 
     return res.status(405).json({
-
       success: false,
-
       message: "Method not allowed"
-
     });
 
   }
 
+
   try {
 
     const {
-  email,
-  address,
-  diensten,
-  opmerking_klant,
-  photographer_id,
-  start,
-  end
-} = req.body;
+      email,
+      address,
+      diensten,
+      opmerking_klant,
+      photographer_id,
+      start,
+      end
+    } = req.body;
+
 
     console.log("========== NIEUWE BOEKING ==========");
     console.log(req.body);
 
+
     if (
-
       !email ||
-
+      !address ||
       !photographer_id ||
-
       !start ||
-
       !end
-
     ) {
 
       return res.status(400).json({
-
         success: false,
-
         message: "Missing required fields"
-
       });
 
     }
+
 
     // ================================
     // Contact zoeken
     // ================================
 
     const contact =
-
       await findContactByEmail(email);
+
 
     if (!contact) {
 
       return res.status(404).json({
-
         success: false,
-
         message: "Contact niet gevonden."
-
       });
 
     }
 
-    
+
     // ================================
     // Ticket aanmaken
     // ================================
 
     const ticket =
-  await createTicket({
+      await createTicket({
 
-    hs_pipeline:
-      "0",
+        // Ticketnaam in HubSpot
+        subject:
+          address,
 
-    hs_pipeline_stage:
-      "2",
+        hs_pipeline:
+          "0",
 
-    adres:
-      address,
+        hs_pipeline_stage:
+          "2",
 
-    diensten:
-      diensten,
+        adres:
+          address,
 
-    opmerking_klant:
-      opmerking_klant || "",
+        diensten:
+          Array.isArray(diensten)
+            ? diensten.join(";")
+            : diensten,
 
-    selected_photographer_id:
-      photographer_id,
+        opmerking_klant:
+          opmerking_klant || "",
 
-    afspraak_start:
-      start,
+        selected_photographer_id:
+          String(photographer_id),
 
-    afspraak_einde:
-      end
-  });
+        afspraak_start:
+          String(start),
 
-    console.log("Ticket aangemaakt:", ticket.id);
+        afspraak_einde:
+          String(end)
+
+      });
+
+
+    console.log(
+      "Ticket aangemaakt:",
+      ticket.id
+    );
+
 
     // ================================
     // Ticket koppelen
     // ================================
 
     await associateTicketWithContact(
-
       ticket.id,
-
       contact.id
-
     );
 
-    console.log("Ticket gekoppeld");
+
+    console.log(
+      "Ticket gekoppeld"
+    );
+
 
     return res.status(200).json({
-
       success: true,
-
       ticketId: ticket.id,
-
       contactId: contact.id
-
     });
 
   }
 
+
   catch (error) {
 
-    console.error("================================");
-    console.error("SELECT PHOTOGRAPHER ERROR");
+    console.error(
+      "================================"
+    );
+
+    console.error(
+      "SELECT PHOTOGRAPHER ERROR"
+    );
+
     console.error(error);
-    console.error("================================");
+
+    console.error(
+      "================================"
+    );
+
 
     return res.status(500).json({
-
       success: false,
-
       message: error.message,
-
       stack: error.stack
-
     });
 
   }
 
 }
-
