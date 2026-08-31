@@ -40,18 +40,29 @@ export default async function handler(req, res) {
     }
 
 
-    const ticket = await getTicket(
-  ticket_id,
-  [
-    "adres",
-    "diensten",
-    "opmerking_klant",
-    "selected_photographer_id",
-    "afspraak_start",
-    "afspraak_einde",
-    "hs_pipeline_stage"
-  ]
-);
+    // =====================================
+    // Ticket ophalen
+    // =====================================
+
+    const ticket =
+      await getTicket(
+        ticket_id,
+        [
+          "adres",
+          "diensten",
+          "opmerking_klant",
+
+          "woning_oppervlakte_m2",
+          "huiseigenaar_naam",
+          "huiseigenaar_email",
+          "huiseigenaar_telefoon",
+
+          "selected_photographer_id",
+          "afspraak_start",
+          "afspraak_einde",
+          "hs_pipeline_stage"
+        ]
+      );
 
 
     // =====================================
@@ -69,9 +80,10 @@ export default async function handler(req, res) {
 
       const allowed =
         (associations.results || [])
-          .some(item =>
-            String(item.toObjectId) ===
-            String(contact_id)
+          .some(
+            item =>
+              String(item.toObjectId) ===
+              String(contact_id)
           );
 
 
@@ -92,6 +104,7 @@ export default async function handler(req, res) {
     // =====================================
 
     let fotograaf = null;
+
 
     const photographerId =
       ticket.properties
@@ -115,7 +128,8 @@ export default async function handler(req, res) {
 
         fotograaf = {
 
-          id: contact.id,
+          id:
+            contact.id,
 
           firstname:
             contact.properties?.firstname || "",
@@ -127,6 +141,7 @@ export default async function handler(req, res) {
             contact.properties?.email || ""
 
         };
+
 
       } catch (error) {
 
@@ -140,9 +155,14 @@ export default async function handler(req, res) {
     }
 
 
+    // =====================================
+    // Response
+    // =====================================
+
     return res.status(200).json({
 
-      success: true,
+      success:
+        true,
 
       ticket,
 
@@ -153,13 +173,19 @@ export default async function handler(req, res) {
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "GET TICKET ERROR:",
+      error
+    );
+
 
     return res.status(500).json({
 
-      success: false,
+      success:
+        false,
 
-      error: error.message
+      error:
+        error.message
 
     });
 
