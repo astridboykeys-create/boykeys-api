@@ -43,6 +43,10 @@ async function associateTicketWithLabeledContact(
 }
 
 
+// ==========================================
+// API HANDLER
+// ==========================================
+
 export default async function handler(
   req,
   res
@@ -83,7 +87,12 @@ export default async function handler(
       opmerking_klant,
       photographer_id,
       start,
-      end
+      end,
+
+      woning_oppervlakte_m2,
+      huiseigenaar_naam,
+      huiseigenaar_email,
+      huiseigenaar_telefoon
     } =
       req.body ||
       {};
@@ -181,18 +190,47 @@ export default async function handler(
             ? diensten.join(";")
             : diensten || "",
 
-        // Klantopmerking
+        // Opmerking makelaar
         opmerking_klant:
           opmerking_klant ||
           "",
 
-        // Planner gebruikt deze ID
+        // ==================================
+        // WONING / HUISEIGENAAR
+        // ==================================
+
+        woning_oppervlakte_m2:
+          woning_oppervlakte_m2 !== undefined &&
+          woning_oppervlakte_m2 !== null &&
+          woning_oppervlakte_m2 !== ""
+            ? String(woning_oppervlakte_m2)
+            : "",
+
+        huiseigenaar_naam:
+          huiseigenaar_naam ||
+          "",
+
+        huiseigenaar_email:
+          huiseigenaar_email ||
+          "",
+
+        huiseigenaar_telefoon:
+          huiseigenaar_telefoon ||
+          "",
+
+        // ==================================
+        // FOTOGRAAF
+        // ==================================
+
         selected_photographer_id:
           String(
             photographer_id
           ),
 
-        // Afspraaktijden
+        // ==================================
+        // AFSPRAAK
+        // ==================================
+
         afspraak_start:
           String(
             start
@@ -214,7 +252,6 @@ export default async function handler(
 
     // ======================================
     // MAKELAAR KOPPELEN
-    // label = Makelaar
     // ======================================
 
     await associateTicketWithLabeledContact(
@@ -232,7 +269,6 @@ export default async function handler(
 
     // ======================================
     // FOTOGRAAF KOPPELEN
-    // label = Fotograaf
     // ======================================
 
     await associateTicketWithLabeledContact(
