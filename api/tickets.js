@@ -1562,6 +1562,12 @@ export default async function handler(
               "afspraak_start",
               "afspraak_einde",
               "opmerking_klant",
+
+              "woning_oppervlakte_m2",
+              "huiseigenaar_naam",
+              "huiseigenaar_email",
+              "huiseigenaar_telefoon",
+
               "planner_reason",
               "planner_note",
               "planner_approved_at",
@@ -1608,6 +1614,12 @@ export default async function handler(
         address,
         diensten,
         opmerking_klant,
+
+        woning_oppervlakte_m2,
+        huiseigenaar_naam,
+        huiseigenaar_email,
+        huiseigenaar_telefoon,
+
         photographer_id,
         start,
         end,
@@ -2291,10 +2303,31 @@ export default async function handler(
                   diensten
                 )
                   ? diensten.join(";")
-                  : diensten,
+                  : diensten || "",
 
               opmerking_klant:
                 opmerking_klant ||
+                "",
+
+              woning_oppervlakte_m2:
+                woning_oppervlakte_m2 !== undefined &&
+                woning_oppervlakte_m2 !== null &&
+                woning_oppervlakte_m2 !== ""
+                  ? String(
+                      woning_oppervlakte_m2
+                    )
+                  : "",
+
+              huiseigenaar_naam:
+                huiseigenaar_naam ||
+                "",
+
+              huiseigenaar_email:
+                huiseigenaar_email ||
+                "",
+
+              huiseigenaar_telefoon:
+                huiseigenaar_telefoon ||
                 "",
 
               selected_photographer_id:
