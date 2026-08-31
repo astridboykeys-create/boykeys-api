@@ -1,25 +1,75 @@
 import { enableCors } from "../lib/cors.js";
 
 import {
+  hubspotRequest,
   findContactByEmail,
-  createTicket,
-  associateTicketWithContact
+  createTicket
 } from "../lib/hubspot.js";
 
 
-export default async function handler(req, res) {
+// ==========================================
+// HUBSPOT ASSOCIATION TYPES
+// Ticket -> Contact
+// ==========================================
 
-  if (enableCors(req, res)) {
+const ASSOCIATION_FOTOGRAAF = 79;
+const ASSOCIATION_MAKELAAR = 81;
+
+
+// ==========================================
+// GELABELDE TICKET -> CONTACT ASSOCIATIE
+// ==========================================
+
+async function associateTicketWithLabeledContact(
+  ticketId,
+  contactId,
+  associationTypeId
+) {
+
+  await hubspotRequest(
+    `/crm/v4/objects/tickets/${ticketId}/associations/contacts/${contactId}`,
+    "PUT",
+    [
+      {
+        associationCategory:
+          "USER_DEFINED",
+
+        associationTypeId:
+          associationTypeId
+      }
+    ]
+  );
+
+}
+
+
+export default async function handler(
+  req,
+  res
+) {
+
+  if (
+    enableCors(
+      req,
+      res
+    )
+  ) {
     return;
   }
 
 
-  if (req.method !== "POST") {
+  if (
+    req.method !==
+    "POST"
+  ) {
 
-    return res.status(405).json({
-      success: false,
-      message: "Method not allowed"
-    });
+    return res
+      .status(405)
+      .json({
+        success: false,
+        message:
+          "Method not allowed"
+      });
 
   }
 
@@ -34,12 +84,23 @@ export default async function handler(req, res) {
       photographer_id,
       start,
       end
-    } = req.body;
+    } =
+      req.body ||
+      {};
 
 
-    console.log("========== NIEUWE BOEKING ==========");
-    console.log(req.body);
+    console.log(
+      "========== NIEUWE BOEKING =========="
+    );
 
+    console.log(
+      req.body
+    );
+
+
+    // ======================================
+    // VALIDATIE
+    // ======================================
 
     if (
       !email ||
@@ -49,68 +110,98 @@ export default async function handler(req, res) {
       !end
     ) {
 
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields"
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Missing required fields"
+        });
 
     }
 
 
-    // ================================
-    // Contact zoeken
-    // ================================
+    // ======================================
+    // MAKELAAR CONTACT ZOEKEN
+    // ======================================
 
     const contact =
-      await findContactByEmail(email);
+      await findContactByEmail(
+        email
+      );
 
 
     if (!contact) {
 
-      return res.status(404).json({
-        success: false,
-        message: "Contact niet gevonden."
-      });
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message:
+            "Contact niet gevonden."
+        });
 
     }
 
 
-    // ================================
-    // Ticket aanmaken
-    // ================================
+    console.log(
+      "Makelaar gevonden:",
+      contact.id
+    );
+
+
+    // ======================================
+    // TICKET AANMAKEN
+    // ======================================
 
     const ticket =
       await createTicket({
 
-        // Ticketnaam in HubSpot
+        // Ticketnaam
         subject:
           address,
 
+        // Pipeline
         hs_pipeline:
           "0",
 
+        // Wachten op beoordeling
         hs_pipeline_stage:
           "2",
 
+        // Adres
         adres:
           address,
 
+        // Diensten
         diensten:
-          Array.isArray(diensten)
+          Array.isArray(
+            diensten
+          )
             ? diensten.join(";")
-            : diensten,
+            : diensten || "",
 
+        // Klantopmerking
         opmerking_klant:
-          opmerking_klant || "",
+          opmerking_klant ||
+          "",
 
+        // Planner gebruikt deze ID
         selected_photographer_id:
-          String(photographer_id),
+          String(
+            photographer_id
+          ),
 
+        // Afspraaktijden
         afspraak_start:
-          String(start),
+          String(
+            start
+          ),
 
         afspraak_einde:
-          String(end)
+          String(
+            end
+          )
 
       });
 
@@ -121,31 +212,72 @@ export default async function handler(req, res) {
     );
 
 
-    // ================================
-    // Ticket koppelen
-    // ================================
+    // ======================================
+    // MAKELAAR KOPPELEN
+    // label = Makelaar
+    // ======================================
 
-    await associateTicketWithContact(
+    await associateTicketWithLabeledContact(
       ticket.id,
-      contact.id
+      contact.id,
+      ASSOCIATION_MAKELAAR
     );
 
 
     console.log(
-      "Ticket gekoppeld"
+      "Makelaar gekoppeld:",
+      contact.id
     );
 
 
-    return res.status(200).json({
-      success: true,
-      ticketId: ticket.id,
-      contactId: contact.id
-    });
+    // ======================================
+    // FOTOGRAAF KOPPELEN
+    // label = Fotograaf
+    // ======================================
+
+    await associateTicketWithLabeledContact(
+      ticket.id,
+      photographer_id,
+      ASSOCIATION_FOTOGRAAF
+    );
+
+
+    console.log(
+      "Fotograaf gekoppeld:",
+      photographer_id
+    );
+
+
+    // ======================================
+    // RESPONSE
+    // ======================================
+
+    return res
+      .status(200)
+      .json({
+
+        success:
+          true,
+
+        ticketId:
+          ticket.id,
+
+        contactId:
+          contact.id,
+
+        photographerId:
+          String(
+            photographer_id
+          )
+
+      });
 
   }
 
 
-  catch (error) {
+  catch (
+    error
+  ) {
 
     console.error(
       "================================"
@@ -155,18 +287,29 @@ export default async function handler(req, res) {
       "SELECT PHOTOGRAPHER ERROR"
     );
 
-    console.error(error);
+    console.error(
+      error
+    );
 
     console.error(
       "================================"
     );
 
 
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-      stack: error.stack
-    });
+    return res
+      .status(500)
+      .json({
+
+        success:
+          false,
+
+        message:
+          error.message,
+
+        stack:
+          error.stack
+
+      });
 
   }
 
