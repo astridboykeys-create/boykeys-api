@@ -387,38 +387,17 @@ async function inspectExcelFile() {
     loadXlsx();
 
 
-  let workbook;
+  const workbook =
+    XLSX.read(
+      result.buffer,
+      {
+        type:
+          "buffer",
 
-
-  try {
-
-    workbook =
-      XLSX.read(
-        result.buffer,
-        {
-          type:
-            "buffer",
-
-          cellDates:
-            true
-        }
-      );
-
-  }
-
-  catch (error) {
-
-    console.error(
-      "XLSB PARSE ERROR",
-      error
+        cellDates:
+          true
+      }
     );
-
-
-    throw new Error(
-      `XLSB bestand kon niet worden geopend: ${error.message}`
-    );
-
-  }
 
 
   const sheets =
@@ -440,57 +419,92 @@ async function inspectExcelFile() {
     }
 
 
-    let rows =
-      [];
+    const rows =
+      XLSX.utils.sheet_to_json(
+        worksheet,
+        {
+          header:
+            1,
 
+          defval:
+            null,
 
-    try {
-
-      rows =
-        XLSX.utils.sheet_to_json(
-          worksheet,
-          {
-            header:
-              1,
-
-            defval:
-              null,
-
-            raw:
-              false
-          }
-        );
-
-    }
-
-    catch (error) {
-
-      console.error(
-        `SHEET PARSE ERROR: ${sheetName}`,
-        error
+          raw:
+            false
+        }
       );
 
 
-      sheets.push({
+    const cleanedRows =
+      rows
+        .map(
+          (
+            row,
+            rowIndex
+          ) => {
 
-        name:
-          sheetName,
+            const cells =
+              row
+                .map(
+                  (
+                    value,
+                    columnIndex
+                  ) => {
 
-        error:
-          error.message,
+                    if (
+                      value === null ||
+                      value === undefined ||
+                      String(value).trim() === ""
+                    ) {
 
-        totalRows:
-          null,
+                      return null;
 
-        preview:
-          []
-
-      });
+                    }
 
 
-      continue;
+                    return {
 
-    }
+                      column:
+                        XLSX.utils.encode_col(
+                          columnIndex
+                        ),
+
+                      value:
+                        value
+
+                    };
+
+                  }
+                )
+                .filter(Boolean);
+
+
+            if (
+              cells.length === 0
+            ) {
+
+              return null;
+
+            }
+
+
+            return {
+
+              row:
+                rowIndex + 1,
+
+              cells:
+                cells
+
+            };
+
+          }
+        )
+        .filter(Boolean)
+        .slice(
+          0,
+          30
+        );
 
 
     sheets.push({
@@ -498,14 +512,8 @@ async function inspectExcelFile() {
       name:
         sheetName,
 
-      totalRows:
-        rows.length,
-
       preview:
-        rows.slice(
-          0,
-          20
-        )
+        cleanedRows
 
     });
 
