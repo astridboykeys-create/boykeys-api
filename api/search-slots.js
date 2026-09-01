@@ -398,6 +398,51 @@ function createAmsterdamDate(
 
 
 // ============================================
+// CHECK DATUM T.O.V. VANDAAG
+// ============================================
+
+function getTodayAmsterdam() {
+
+  return getAmsterdamDate(
+    new Date()
+  );
+
+}
+
+
+function isPastDate(
+  selectedDate
+) {
+
+  const today =
+    getTodayAmsterdam();
+
+
+  return (
+    selectedDate <
+    today
+  );
+
+}
+
+
+function isToday(
+  selectedDate
+) {
+
+  const today =
+    getTodayAmsterdam();
+
+
+  return (
+    selectedDate ===
+    today
+  );
+
+}
+
+
+// ============================================
 // REPEAT DAYS NORMALISEREN
 // ============================================
 
@@ -978,6 +1023,40 @@ export default async function handler(
     }
 
 
+    // ========================================
+    // GEEN BOEKINGEN IN HET VERLEDEN
+    // ========================================
+
+    if (
+      isPastDate(
+        selectedDate
+      )
+    ) {
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          date:
+            selectedDate,
+
+          booking_duration_minutes:
+            null,
+
+          slot_interval_minutes:
+            null,
+
+          photographers:
+            []
+
+        });
+
+    }
+
+
     if (
       !destinationAddress &&
       (
@@ -1087,6 +1166,26 @@ export default async function handler(
       bookingDurationMinutes
     } =
       plannerSettings;
+
+
+    // ========================================
+    // HUIDIG TIJDSTIP
+    //
+    // new Date() is een absoluut tijdstip.
+    // createAmsterdamDate() zet slots op het
+    // juiste Amsterdamse tijdstip.
+    // Daardoor kunnen ze veilig rechtstreeks
+    // worden vergeleken.
+    // ========================================
+
+    const now =
+      new Date();
+
+
+    const selectedDateIsToday =
+      isToday(
+        selectedDate
+      );
 
 
     // ========================================
@@ -1254,6 +1353,27 @@ export default async function handler(
               selectedDate,
               slot.end
             );
+
+
+          // ==================================
+          // VANDAAG:
+          // VERLEDEN STARTTIJDEN VERBERGEN
+          // ==================================
+          //
+          // 12:19 -> 12:00 wordt verwijderd
+          // 12:19 -> 12:30 blijft staan
+          //
+          // Ook exact "nu" wordt niet meer
+          // aangeboden.
+          // ==================================
+
+          if (
+            selectedDateIsToday &&
+            candidateStart.getTime() <=
+              now.getTime()
+          ) {
+            continue;
+          }
 
 
           // ==================================
