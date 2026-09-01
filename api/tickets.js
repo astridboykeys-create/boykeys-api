@@ -10,6 +10,7 @@ import {
   getTicket,
   getContact,
   getBookings,
+  findContactByEmail,
 
   STAGE_REVIEW,
   STAGE_APPROVED,
@@ -1390,7 +1391,8 @@ export default async function handler(
         action,
         photographer_id,
         contact_id,
-        ticket_id
+        ticket_id,
+        email
       } =
         req.query;
 
@@ -1425,6 +1427,7 @@ export default async function handler(
 
       // =======================================
       // SERVICES
+      // alle beschikbare ticket-diensten
       // =======================================
 
       if (
@@ -1441,6 +1444,99 @@ export default async function handler(
           .json({
             success: true,
             services
+          });
+
+      }
+
+
+      // =======================================
+      // STANDAARD DIENSTEN MAKELAAR
+      // Contact-property "diensten"
+      // =======================================
+
+      if (
+        action ===
+        "contact-services"
+      ) {
+
+        if (
+          !email
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "email is verplicht"
+            });
+
+        }
+
+
+        const foundContact =
+          await findContactByEmail(
+            email
+          );
+
+
+        if (
+          !foundContact
+        ) {
+
+          return res
+            .status(404)
+            .json({
+              success: false,
+              error:
+                "Contact niet gevonden"
+            });
+
+        }
+
+
+        const contact =
+          await getContact(
+            foundContact.id,
+            [
+              "diensten",
+              "portal_role"
+            ]
+          );
+
+
+        if (
+          contact.properties
+            ?.portal_role !==
+          "makelaar"
+        ) {
+
+          return res
+            .status(403)
+            .json({
+              success: false,
+              error:
+                "Dit contact is geen makelaar"
+            });
+
+        }
+
+
+        return res
+          .status(200)
+          .json({
+
+            success:
+              true,
+
+            contact_id:
+              contact.id,
+
+            diensten:
+              contact.properties
+                ?.diensten ||
+              ""
+
           });
 
       }
