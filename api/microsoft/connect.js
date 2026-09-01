@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import * as XLSX from "xlsx";
+import { createRequire } from "node:module";
 
 
 // ==========================================
@@ -333,6 +333,47 @@ async function downloadExcelFile() {
 
 
 // ==========================================
+// XLSX PACKAGE PAS LADEN WANNEER NODIG
+// ==========================================
+
+function loadXlsx() {
+
+  try {
+
+    const require =
+      createRequire(
+        import.meta.url
+      );
+
+
+    const XLSX =
+      require(
+        "xlsx"
+      );
+
+
+    return XLSX;
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "XLSX PACKAGE LOAD ERROR",
+      error
+    );
+
+
+    throw new Error(
+      `XLSX package kon niet worden geladen: ${error.message}`
+    );
+
+  }
+
+}
+
+
+// ==========================================
 // EXCEL INSPECTEREN
 // ==========================================
 
@@ -342,17 +383,42 @@ async function inspectExcelFile() {
     await downloadExcelFile();
 
 
-  const workbook =
-    XLSX.read(
-      result.buffer,
-      {
-        type:
-          "buffer",
+  const XLSX =
+    loadXlsx();
 
-        cellDates:
-          true
-      }
+
+  let workbook;
+
+
+  try {
+
+    workbook =
+      XLSX.read(
+        result.buffer,
+        {
+          type:
+            "buffer",
+
+          cellDates:
+            true
+        }
+      );
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "XLSB PARSE ERROR",
+      error
     );
+
+
+    throw new Error(
+      `XLSB bestand kon niet worden geopend: ${error.message}`
+    );
+
+  }
 
 
   const sheets =
@@ -370,26 +436,61 @@ async function inspectExcelFile() {
 
 
     if (!worksheet) {
+      continue;
+    }
+
+
+    let rows =
+      [];
+
+
+    try {
+
+      rows =
+        XLSX.utils.sheet_to_json(
+          worksheet,
+          {
+            header:
+              1,
+
+            defval:
+              null,
+
+            raw:
+              false
+          }
+        );
+
+    }
+
+    catch (error) {
+
+      console.error(
+        `SHEET PARSE ERROR: ${sheetName}`,
+        error
+      );
+
+
+      sheets.push({
+
+        name:
+          sheetName,
+
+        error:
+          error.message,
+
+        totalRows:
+          null,
+
+        preview:
+          []
+
+      });
+
 
       continue;
 
     }
-
-
-    const rows =
-      XLSX.utils.sheet_to_json(
-        worksheet,
-        {
-          header:
-            1,
-
-          defval:
-            null,
-
-          raw:
-            false
-        }
-      );
 
 
     sheets.push({
@@ -602,16 +703,6 @@ export default async function handler(
         result.buffer.length;
 
 
-      const megabytes =
-        Number(
-          (
-            bytes /
-            1024 /
-            1024
-          ).toFixed(2)
-        );
-
-
       return res
         .status(200)
         .json({
@@ -640,7 +731,13 @@ export default async function handler(
               bytes,
 
             megabytes:
-              megabytes
+              Number(
+                (
+                  bytes /
+                  1024 /
+                  1024
+                ).toFixed(2)
+              )
 
           }
 
@@ -674,12 +771,6 @@ export default async function handler(
             name:
               inspection.fileInfo.name,
 
-            driveId:
-              inspection.fileInfo.driveId,
-
-            itemId:
-              inspection.fileInfo.itemId,
-
             lastModifiedDateTime:
               inspection.fileInfo.lastModifiedDateTime
 
@@ -690,6 +781,38 @@ export default async function handler(
 
           sheets:
             inspection.sheets
+
+        });
+
+    }
+
+
+    // ======================================
+    // ACTION: XLSX PACKAGE TEST
+    // ======================================
+
+    if (
+      action ===
+      "xlsx-test"
+    ) {
+
+      const XLSX =
+        loadXlsx();
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          message:
+            "XLSX package is geladen.",
+
+          version:
+            XLSX.version ||
+            null
 
         });
 
@@ -755,10 +878,6 @@ export default async function handler(
     }
 
 
-    // ======================================
-    // CSRF STATE
-    // ======================================
-
     const state =
       crypto
         .randomBytes(24)
@@ -777,10 +896,6 @@ export default async function handler(
       ].join("; ")
     );
 
-
-    // ======================================
-    // MICROSOFT OAUTH URL
-    // ======================================
 
     const params =
       new URLSearchParams({
