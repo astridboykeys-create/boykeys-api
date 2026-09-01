@@ -6,9 +6,67 @@ import { createRequire } from "node:module";
 // HUBSPOT PIPELINE STAGES
 // ==========================================
 
-const STAGE_OPNAMEDAG = "5980739821";
-const STAGE_PAKKET_IN_BEHANDELING = "5980739822";
-const STAGE_AFGEROND = "4";
+const STAGE_OPNAMEDAG =
+  "5980739821";
+
+const STAGE_PAKKET_IN_BEHANDELING =
+  "5980739822";
+
+const STAGE_AFGEROND =
+  "4";
+
+
+// ==========================================
+// HUBSPOT ASSOCIATION TYPES
+// ==========================================
+
+const ASSOCIATION_TYPE_MAKELAAR =
+  81;
+
+
+// ==========================================
+// CORS
+// ==========================================
+
+function enableCors(
+  req,
+  res
+) {
+
+  res.setHeader(
+    "Access-Control-Allow-Origin",
+    "*"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET,OPTIONS"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "*"
+  );
+
+
+  if (
+    req.method ===
+    "OPTIONS"
+  ) {
+
+    res
+      .status(200)
+      .end();
+
+
+    return true;
+
+  }
+
+
+  return false;
+
+}
 
 
 // ==========================================
@@ -44,11 +102,15 @@ async function getAccessToken() {
     await fetch(
       "https://login.microsoftonline.com/common/oauth2/v2.0/token",
       {
-        method: "POST",
+
+        method:
+          "POST",
 
         headers: {
+
           "Content-Type":
             "application/x-www-form-urlencoded"
+
         },
 
         body:
@@ -100,7 +162,9 @@ async function getAccessToken() {
   }
 
 
-  if (!data.access_token) {
+  if (
+    !data.access_token
+  ) {
 
     throw new Error(
       "Microsoft heeft geen access token teruggegeven."
@@ -187,10 +251,14 @@ async function getExcelFileInfo() {
     await fetch(
       `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem?$select=id,name,size,webUrl,parentReference,file,lastModifiedDateTime`,
       {
+
         headers: {
+
           Authorization:
             `Bearer ${accessToken}`
+
         }
+
       }
     );
 
@@ -284,13 +352,17 @@ async function downloadExcelFile() {
         fileInfo.itemId
       )}/content`,
       {
+
         headers: {
+
           Authorization:
             `Bearer ${accessToken}`
+
         },
 
         redirect:
           "follow"
+
       }
     );
 
@@ -384,7 +456,9 @@ function getCellValue(
 ) {
 
   if (!cell) {
+
     return "";
+
   }
 
 
@@ -418,11 +492,13 @@ async function getExcelBookingMap() {
     XLSX.read(
       result.buffer,
       {
+
         type:
           "buffer",
 
         cellDates:
           true
+
       }
     );
 
@@ -489,7 +565,9 @@ async function getExcelBookingMap() {
 
 
       if (!bookingCode) {
+
         continue;
+
       }
 
 
@@ -503,6 +581,7 @@ async function getExcelBookingMap() {
       bookings.set(
         bookingCode,
         {
+
           boekingscode:
             bookingCode,
 
@@ -519,6 +598,7 @@ async function getExcelBookingMap() {
 
           row:
             row + 1
+
         }
       );
 
@@ -652,6 +732,7 @@ async function hubSpotRequest(
     await fetch(
       url,
       {
+
         ...options,
 
         headers: {
@@ -665,6 +746,7 @@ async function hubSpotRequest(
           ...(options.headers || {})
 
         }
+
       }
     );
 
@@ -740,15 +822,19 @@ async function getHubSpotTicketsWithBookingCode() {
 
       filterGroups: [
         {
+
           filters: [
             {
+
               propertyName:
                 "boekingscode",
 
               operator:
                 "HAS_PROPERTY"
+
             }
           ]
+
         }
       ],
 
@@ -763,6 +849,7 @@ async function getHubSpotTicketsWithBookingCode() {
 
       limit:
         100
+
     };
 
 
@@ -778,6 +865,7 @@ async function getHubSpotTicketsWithBookingCode() {
       await hubSpotRequest(
         "https://api.hubapi.com/crm/v3/objects/tickets/search",
         {
+
           method:
             "POST",
 
@@ -785,6 +873,7 @@ async function getHubSpotTicketsWithBookingCode() {
             JSON.stringify(
               body
             )
+
         }
       );
 
@@ -809,6 +898,97 @@ async function getHubSpotTicketsWithBookingCode() {
 
 
 // ==========================================
+// CONTROLEREN OF TICKET VAN MAKELAAR IS
+//
+// Alleen association typeId 81 telt.
+// Dus een fotograaf-associatie geeft geen toegang.
+// ==========================================
+
+async function ticketBelongsToMakelaar(
+  ticketId,
+  contactId
+) {
+
+  const wantedContactId =
+    String(
+      contactId ||
+      ""
+    );
+
+
+  if (!wantedContactId) {
+
+    return false;
+
+  }
+
+
+  const data =
+    await hubSpotRequest(
+      `https://api.hubapi.com/crm/v4/objects/tickets/${encodeURIComponent(
+        ticketId
+      )}/associations/contacts?limit=100`
+    );
+
+
+  const results =
+    data.results ||
+    [];
+
+
+  for (
+    const association of results
+  ) {
+
+    const associatedContactId =
+      String(
+        association.toObjectId ||
+        association.id ||
+        ""
+      );
+
+
+    if (
+      associatedContactId !==
+      wantedContactId
+    ) {
+
+      continue;
+
+    }
+
+
+    const associationTypes =
+      association.associationTypes ||
+      association.types ||
+      [];
+
+
+    const isMakelaar =
+      associationTypes.some(
+        type =>
+          Number(
+            type.typeId
+          ) ===
+          ASSOCIATION_TYPE_MAKELAAR
+      );
+
+
+    if (isMakelaar) {
+
+      return true;
+
+    }
+
+  }
+
+
+  return false;
+
+}
+
+
+// ==========================================
 // HUBSPOT TICKETSTAGE WIJZIGEN
 // ==========================================
 
@@ -822,6 +1002,7 @@ async function updateHubSpotTicketStage(
       ticketId
     )}`,
     {
+
       method:
         "PATCH",
 
@@ -836,6 +1017,7 @@ async function updateHubSpotTicketStage(
           }
 
         })
+
     }
   );
 
@@ -881,12 +1063,22 @@ function determineTargetStage(
 // ==========================================
 // HUBSPOT / EXCEL SYNC
 //
-// dryRun = true  -> alleen bekijken
-// dryRun = false -> HubSpot echt wijzigen
+// dryRun = true
+//   -> alleen bekijken
+//
+// dryRun = false
+//   -> HubSpot echt wijzigen
+//
+// contactId = null
+//   -> centrale/planner sync
+//
+// contactId gevuld
+//   -> alleen tickets van die makelaar
 // ==========================================
 
 async function syncHubSpotWithExcel(
-  dryRun = true
+  dryRun = true,
+  contactId = null
 ) {
 
   const excel =
@@ -914,6 +1106,12 @@ async function syncHubSpotWithExcel(
     0;
 
   let notFound =
+    0;
+
+  let notOwned =
+    0;
+
+  let owned =
     0;
 
 
@@ -946,7 +1144,10 @@ async function syncHubSpotWithExcel(
     }
 
 
-    // Alleen productie-gerelateerde stages.
+    // --------------------------------------
+    // Alleen productie-gerelateerde stages
+    // --------------------------------------
+
     if (
       currentStage !==
         STAGE_OPNAMEDAG &&
@@ -960,6 +1161,39 @@ async function syncHubSpotWithExcel(
 
     }
 
+
+    // --------------------------------------
+    // Indien contact_id is opgegeven:
+    // controleren of dit ticket via
+    // Makelaar association 81 gekoppeld is.
+    // --------------------------------------
+
+    if (contactId) {
+
+      const belongs =
+        await ticketBelongsToMakelaar(
+          ticket.id,
+          contactId
+        );
+
+
+      if (!belongs) {
+
+        notOwned++;
+
+        continue;
+
+      }
+
+
+      owned++;
+
+    }
+
+
+    // --------------------------------------
+    // Boeking zoeken in Excel
+    // --------------------------------------
 
     const excelBooking =
       excel.bookings.get(
@@ -1001,6 +1235,10 @@ async function syncHubSpotWithExcel(
     matched++;
 
 
+    // --------------------------------------
+    // Doelstage bepalen
+    // --------------------------------------
+
     const targetStage =
       determineTargetStage(
         currentStage,
@@ -1016,6 +1254,10 @@ async function syncHubSpotWithExcel(
 
     }
 
+
+    // --------------------------------------
+    // Staat al goed
+    // --------------------------------------
 
     if (
       currentStage ===
@@ -1056,6 +1298,10 @@ async function syncHubSpotWithExcel(
 
     }
 
+
+    // --------------------------------------
+    // Werkelijke wijziging
+    // --------------------------------------
 
     if (!dryRun) {
 
@@ -1112,6 +1358,15 @@ async function syncHubSpotWithExcel(
     dryRun:
       dryRun,
 
+    scope:
+      contactId
+        ? "makelaar"
+        : "all",
+
+    contactId:
+      contactId ||
+      null,
+
     excelFile: {
 
       name:
@@ -1128,7 +1383,12 @@ async function syncHubSpotWithExcel(
     hubspot: {
 
       ticketsWithBookingCode:
-        hubSpotTickets.length
+        hubSpotTickets.length,
+
+      ownedTicketsChecked:
+        contactId
+          ? owned
+          : null
 
     },
 
@@ -1147,7 +1407,12 @@ async function syncHubSpotWithExcel(
         skipped,
 
       notFound:
-        notFound
+        notFound,
+
+      notOwned:
+        contactId
+          ? notOwned
+          : 0
 
     },
 
@@ -1173,10 +1438,14 @@ async function getSharedFiles() {
     await fetch(
       "https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?allowexternal=true",
       {
+
         headers: {
+
           Authorization:
             `Bearer ${accessToken}`
+
         }
+
       }
     );
 
@@ -1267,6 +1536,18 @@ export default async function handler(
 ) {
 
   if (
+    enableCors(
+      req,
+      res
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  if (
     req.method !==
     "GET"
   ) {
@@ -1274,11 +1555,13 @@ export default async function handler(
     return res
       .status(405)
       .json({
+
         success:
           false,
 
         message:
           "Method not allowed"
+
       });
 
   }
@@ -1293,7 +1576,6 @@ export default async function handler(
 
     // ======================================
     // HUBSPOT SYNC PREVIEW
-    // GEEN WIJZIGINGEN
     // ======================================
 
     if (
@@ -1301,9 +1583,18 @@ export default async function handler(
       "hubspot-sync-preview"
     ) {
 
+      const contactId =
+        req.query?.contact_id
+          ? String(
+              req.query.contact_id
+            )
+          : null;
+
+
       const result =
         await syncHubSpotWithExcel(
-          true
+          true,
+          contactId
         );
 
 
@@ -1323,7 +1614,6 @@ export default async function handler(
 
     // ======================================
     // HUBSPOT SYNC
-    // WIJZIGT TICKETS ECHT
     // ======================================
 
     if (
@@ -1331,9 +1621,18 @@ export default async function handler(
       "hubspot-sync"
     ) {
 
+      const contactId =
+        req.query?.contact_id
+          ? String(
+              req.query.contact_id
+            )
+          : null;
+
+
       const result =
         await syncHubSpotWithExcel(
-          false
+          false,
+          contactId
         );
 
 
