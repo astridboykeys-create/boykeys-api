@@ -17,6 +17,43 @@ const ASSOCIATION_MAKELAAR = 81;
 
 
 // ==========================================
+// BOEKINGSCODE GENEREREN
+// Zelfde soort formaat als SimplyBook.me:
+// 10 tekens, lowercase alfanumeriek
+// ==========================================
+
+function generateBookingCode() {
+
+  const chars =
+    "abcdefghijklmnopqrstuvwxyz0123456789";
+
+  let code = "";
+
+  for (
+    let i = 0;
+    i < 10;
+    i++
+  ) {
+
+    const randomIndex =
+      Math.floor(
+        Math.random() *
+        chars.length
+      );
+
+    code +=
+      chars[
+        randomIndex
+      ];
+
+  }
+
+  return code;
+
+}
+
+
+// ==========================================
 // GELABELDE TICKET -> CONTACT ASSOCIATIE
 // ==========================================
 
@@ -160,6 +197,20 @@ export default async function handler(
 
 
     // ======================================
+    // BOEKINGSCODE GENEREREN
+    // ======================================
+
+    const boekingscode =
+      generateBookingCode();
+
+
+    console.log(
+      "Boekingscode:",
+      boekingscode
+    );
+
+
+    // ======================================
     // TICKET AANMAKEN
     // ======================================
 
@@ -177,6 +228,13 @@ export default async function handler(
         // Wachten op beoordeling
         hs_pipeline_stage:
           "2",
+
+        // ==================================
+        // BOEKINGSCODE
+        // ==================================
+
+        boekingscode:
+          boekingscode,
 
         // Adres
         adres:
@@ -203,7 +261,9 @@ export default async function handler(
           woning_oppervlakte_m2 !== undefined &&
           woning_oppervlakte_m2 !== null &&
           woning_oppervlakte_m2 !== ""
-            ? String(woning_oppervlakte_m2)
+            ? String(
+                woning_oppervlakte_m2
+              )
             : "",
 
         huiseigenaar_naam:
@@ -297,6 +357,9 @@ export default async function handler(
 
         ticketId:
           ticket.id,
+
+        boekingscode:
+          boekingscode,
 
         contactId:
           contact.id,
