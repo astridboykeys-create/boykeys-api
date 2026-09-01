@@ -97,6 +97,142 @@ async function getAccessToken() {
 
 
 // ==========================================
+// ONEDRIVE SHARE URL -> GRAPH SHARE ID
+// ==========================================
+
+function encodeSharingUrl(
+  sharingUrl
+) {
+
+  const base64 =
+    Buffer
+      .from(
+        sharingUrl,
+        "utf8"
+      )
+      .toString(
+        "base64"
+      );
+
+
+  const base64Url =
+    base64
+      .replace(
+        /=+$/,
+        ""
+      )
+      .replace(
+        /\//g,
+        "_"
+      )
+      .replace(
+        /\+/g,
+        "-"
+      );
+
+
+  return `u!${base64Url}`;
+
+}
+
+
+// ==========================================
+// EXCELBESTAND VIA SHARELINK OPHALEN
+// ==========================================
+
+async function getExcelFileInfo() {
+
+  const shareUrl =
+    process.env.MICROSOFT_EXCEL_SHARE_URL;
+
+
+  if (!shareUrl) {
+
+    throw new Error(
+      "MICROSOFT_EXCEL_SHARE_URL ontbreekt."
+    );
+
+  }
+
+
+  const accessToken =
+    await getAccessToken();
+
+
+  const shareId =
+    encodeSharingUrl(
+      shareUrl
+    );
+
+
+  const response =
+    await fetch(
+      `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem?$select=id,name,size,webUrl,parentReference,file,lastModifiedDateTime`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`
+        }
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (!response.ok) {
+
+    console.error(
+      "MICROSOFT EXCEL FILE ERROR",
+      data
+    );
+
+
+    throw new Error(
+      data.error?.message ||
+      "Excelbestand via sharelink ophalen mislukt."
+    );
+
+  }
+
+
+  return {
+
+    name:
+      data.name ||
+      null,
+
+    itemId:
+      data.id ||
+      null,
+
+    driveId:
+      data.parentReference?.driveId ||
+      null,
+
+    size:
+      data.size ||
+      null,
+
+    webUrl:
+      data.webUrl ||
+      null,
+
+    mimeType:
+      data.file?.mimeType ||
+      null,
+
+    lastModifiedDateTime:
+      data.lastModifiedDateTime ||
+      null
+
+  };
+
+}
+
+
+// ==========================================
 // GEDEELDE BESTANDEN OPHALEN
 // ==========================================
 
@@ -224,6 +360,34 @@ export default async function handler(
     const action =
       req.query?.action ||
       "connect";
+
+
+    // ======================================
+    // ACTION: EXCEL INFO
+    // ======================================
+
+    if (
+      action ===
+      "excel-info"
+    ) {
+
+      const file =
+        await getExcelFileInfo();
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          file:
+            file
+
+        });
+
+    }
 
 
     // ======================================
