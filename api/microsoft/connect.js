@@ -35,8 +35,7 @@ async function getAccessToken() {
     await fetch(
       "https://login.microsoftonline.com/common/oauth2/v2.0/token",
       {
-        method:
-          "POST",
+        method: "POST",
 
         headers: {
           "Content-Type":
@@ -92,9 +91,7 @@ async function getAccessToken() {
   }
 
 
-  if (
-    !data.access_token
-  ) {
+  if (!data.access_token) {
 
     throw new Error(
       "Microsoft heeft geen access token teruggegeven."
@@ -333,7 +330,7 @@ async function downloadExcelFile() {
 
 
 // ==========================================
-// XLSX PACKAGE PAS LADEN WANNEER NODIG
+// XLSX PACKAGE LADEN
 // ==========================================
 
 function loadXlsx() {
@@ -374,10 +371,31 @@ function loadXlsx() {
 
 
 // ==========================================
-// EXCEL INSPECTEREN
+// BOEKING ZOEKEN OP KOLOM C
+// STATUS LEZEN UIT KOLOM D
 // ==========================================
 
-async function inspectExcelFile() {
+async function getBookingStatus(
+  bookingCode
+) {
+
+  const cleanBookingCode =
+    String(
+      bookingCode ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (!cleanBookingCode) {
+
+    throw new Error(
+      "Geen boekingscode opgegeven."
+    );
+
+  }
+
 
   const result =
     await downloadExcelFile();
@@ -400,10 +418,6 @@ async function inspectExcelFile() {
     );
 
 
-  const sheets =
-    [];
-
-
   for (
     const sheetName of workbook.SheetNames
   ) {
@@ -419,117 +433,135 @@ async function inspectExcelFile() {
     }
 
 
-    const rows =
-      XLSX.utils.sheet_to_json(
-        worksheet,
-        {
-          header:
-            1,
+    const rangeText =
+      worksheet["!ref"];
 
-          defval:
-            null,
 
-          raw:
-            false
-        }
+    if (!rangeText) {
+      continue;
+    }
+
+
+    const range =
+      XLSX.utils.decode_range(
+        rangeText
       );
 
 
-    const cleanedRows =
-      rows
-        .map(
-          (
-            row,
-            rowIndex
-          ) => {
+    for (
+      let row = range.s.r;
+      row <= range.e.r;
+      row++
+    ) {
 
-            const cells =
-              row
-                .map(
-                  (
-                    value,
-                    columnIndex
-                  ) => {
-
-                    if (
-                      value === null ||
-                      value === undefined ||
-                      String(value).trim() === ""
-                    ) {
-
-                      return null;
-
-                    }
+      const bookingCellAddress =
+        XLSX.utils.encode_cell({
+          c: 2,
+          r: row
+        });
 
 
-                    return {
-
-                      column:
-                        XLSX.utils.encode_col(
-                          columnIndex
-                        ),
-
-                      value:
-                        value
-
-                    };
-
-                  }
-                )
-                .filter(Boolean);
+      const bookingCell =
+        worksheet[
+          bookingCellAddress
+        ];
 
 
-            if (
-              cells.length === 0
-            ) {
-
-              return null;
-
-            }
+      if (!bookingCell) {
+        continue;
+      }
 
 
-            return {
-
-              row:
-                rowIndex + 1,
-
-              cells:
-                cells
-
-            };
-
-          }
+      const excelBookingCode =
+        String(
+          bookingCell.v ??
+          bookingCell.w ??
+          ""
         )
-        .filter(Boolean)
-        .slice(
-          0,
-          30
-        );
+          .trim()
+          .toLowerCase();
 
 
-    sheets.push({
+      if (
+        excelBookingCode !==
+        cleanBookingCode
+      ) {
 
-      name:
-        sheetName,
+        continue;
 
-      preview:
-        cleanedRows
+      }
 
-    });
+
+      const statusCellAddress =
+        XLSX.utils.encode_cell({
+          c: 3,
+          r: row
+        });
+
+
+      const statusCell =
+        worksheet[
+          statusCellAddress
+        ];
+
+
+      const excelStatus =
+        String(
+          statusCell?.v ??
+          statusCell?.w ??
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      const productStatus =
+        excelStatus === "done"
+          ? "klaar"
+          : "in_behandeling";
+
+
+      return {
+
+        found:
+          true,
+
+        sheet:
+          sheetName,
+
+        row:
+          row + 1,
+
+        boekingscode:
+          cleanBookingCode,
+
+        excel_status:
+          excelStatus ||
+          null,
+
+        productiestatus:
+          productStatus
+
+      };
+
+    }
 
   }
 
 
   return {
 
-    fileInfo:
-      result.fileInfo,
+    found:
+      false,
 
-    sheetNames:
-      workbook.SheetNames,
+    boekingscode:
+      cleanBookingCode,
 
-    sheets:
-      sheets
+    excel_status:
+      null,
+
+    productiestatus:
+      null
 
   };
 
@@ -667,7 +699,90 @@ export default async function handler(
 
 
     // ======================================
-    // ACTION: EXCEL INFO
+    // BOOKING STATUS
+    // ======================================
+
+    if (
+      action ===
+      "booking-status"
+    ) {
+
+      const code =
+        req.query?.code;
+
+
+      if (!code) {
+
+        return res
+          .status(400)
+          .json({
+
+            success:
+              false,
+
+            message:
+              "Parameter code ontbreekt."
+
+          });
+
+      }
+
+
+      const booking =
+        await getBookingStatus(
+          code
+        );
+
+
+      if (!booking.found) {
+
+        return res
+          .status(404)
+          .json({
+
+            success:
+              false,
+
+            message:
+              "Boekingscode niet gevonden in Excel.",
+
+            boekingscode:
+              booking.boekingscode
+
+          });
+
+      }
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          boekingscode:
+            booking.boekingscode,
+
+          excel_status:
+            booking.excel_status,
+
+          productiestatus:
+            booking.productiestatus,
+
+          sheet:
+            booking.sheet,
+
+          row:
+            booking.row
+
+        });
+
+    }
+
+
+    // ======================================
+    // EXCEL INFO
     // ======================================
 
     if (
@@ -695,7 +810,7 @@ export default async function handler(
 
 
     // ======================================
-    // ACTION: EXCEL DOWNLOAD TEST
+    // EXCEL DOWNLOAD TEST
     // ======================================
 
     if (
@@ -755,48 +870,7 @@ export default async function handler(
 
 
     // ======================================
-    // ACTION: EXCEL INSPECT
-    // ======================================
-
-    if (
-      action ===
-      "excel-inspect"
-    ) {
-
-      const inspection =
-        await inspectExcelFile();
-
-
-      return res
-        .status(200)
-        .json({
-
-          success:
-            true,
-
-          file: {
-
-            name:
-              inspection.fileInfo.name,
-
-            lastModifiedDateTime:
-              inspection.fileInfo.lastModifiedDateTime
-
-          },
-
-          sheetNames:
-            inspection.sheetNames,
-
-          sheets:
-            inspection.sheets
-
-        });
-
-    }
-
-
-    // ======================================
-    // ACTION: XLSX PACKAGE TEST
+    // XLSX PACKAGE TEST
     // ======================================
 
     if (
@@ -828,7 +902,7 @@ export default async function handler(
 
 
     // ======================================
-    // ACTION: SHARED FILES
+    // SHARED FILES
     // ======================================
 
     if (
@@ -859,8 +933,7 @@ export default async function handler(
 
 
     // ======================================
-    // DEFAULT ACTION:
-    // MICROSOFT OAUTH LOGIN
+    // DEFAULT: MICROSOFT OAUTH
     // ======================================
 
     const clientId =
@@ -950,19 +1023,8 @@ export default async function handler(
   catch (error) {
 
     console.error(
-      "================================"
-    );
-
-    console.error(
-      "MICROSOFT CONNECT ERROR"
-    );
-
-    console.error(
+      "MICROSOFT CONNECT ERROR",
       error
-    );
-
-    console.error(
-      "================================"
     );
 
 
