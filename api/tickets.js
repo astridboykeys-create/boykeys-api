@@ -5,6 +5,7 @@ import {
   getMyJobs,
   getMyOrders,
   updateTicket,
+  updateContact,
   getTicketAssociations,
   getServiceOptions,
   getTicket,
@@ -803,10 +804,6 @@ async function validatePlannerBooking({
     );
 
 
-  // ========================================
-  // FOTOGRAAF
-  // ========================================
-
   const photographer =
     await getContact(
       photographerId,
@@ -849,10 +846,6 @@ async function validatePlannerBooking({
     ) || 30;
 
 
-  // ========================================
-  // BESCHIKBAARHEID
-  // ========================================
-
   const [
     availability,
     rawBlocks,
@@ -874,10 +867,6 @@ async function validatePlannerBooking({
 
     ]);
 
-
-  // ========================================
-  // WERKTIJD
-  // ========================================
 
   const dayKey =
     getDayKey(
@@ -949,10 +938,6 @@ async function validatePlannerBooking({
   }
 
 
-  // ========================================
-  // BLOCKS
-  // ========================================
-
   const blocks =
     expandBlocksForDate(
       rawBlocks,
@@ -998,10 +983,6 @@ async function validatePlannerBooking({
 
   }
 
-
-  // ========================================
-  // ANDERE BOEKINGEN
-  // ========================================
 
   const bookings =
     (
@@ -1065,10 +1046,6 @@ async function validatePlannerBooking({
   }
 
 
-  // ========================================
-  // VORIGE / VOLGENDE BOEKING
-  // ========================================
-
   let previousBooking =
     null;
 
@@ -1122,10 +1099,6 @@ async function validatePlannerBooking({
   }
 
 
-  // ========================================
-  // ADRES NIEUWE BOEKING
-  // ========================================
-
   if (!address) {
 
     return {
@@ -1142,10 +1115,6 @@ async function validatePlannerBooking({
       address
     );
 
-
-  // ========================================
-  // INKOMENDE REISTIJD
-  // ========================================
 
   let incomingTravel =
     null;
@@ -1239,10 +1208,6 @@ async function validatePlannerBooking({
   }
 
 
-  // ========================================
-  // MAX REISTIJD
-  // ========================================
-
   if (
     incomingTravel.travel_minutes >
     maxTravel
@@ -1256,10 +1221,6 @@ async function validatePlannerBooking({
 
   }
 
-
-  // ========================================
-  // REISTIJD NAAR VOLGENDE
-  // ========================================
 
   let travelToNext =
     null;
@@ -1399,7 +1360,6 @@ export default async function handler(
 
       // =======================================
       // ASSOCIATION LABELS
-      // tijdelijk: IDs Fotograaf / Makelaar
       // =======================================
 
       if (
@@ -1427,7 +1387,6 @@ export default async function handler(
 
       // =======================================
       // SERVICES
-      // alle beschikbare ticket-diensten
       // =======================================
 
       if (
@@ -1451,7 +1410,6 @@ export default async function handler(
 
       // =======================================
       // STANDAARD DIENSTEN MAKELAAR
-      // Contact-property "diensten"
       // =======================================
 
       if (
@@ -1536,6 +1494,126 @@ export default async function handler(
               contact.properties
                 ?.diensten ||
               ""
+
+          });
+
+      }
+
+
+      // =======================================
+      // INSTELLINGEN MAKELAAR
+      // =======================================
+
+      if (
+        action ===
+        "contact-settings"
+      ) {
+
+        if (
+          !email
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "email is verplicht"
+            });
+
+        }
+
+
+        const foundContact =
+          await findContactByEmail(
+            email
+          );
+
+
+        if (
+          !foundContact
+        ) {
+
+          return res
+            .status(404)
+            .json({
+              success: false,
+              error:
+                "Contact niet gevonden"
+            });
+
+        }
+
+
+        const contact =
+          await getContact(
+            foundContact.id,
+            [
+              "firstname",
+              "lastname",
+              "phone",
+              "email",
+              "diensten",
+              "portal_role"
+            ]
+          );
+
+
+        if (
+          contact.properties
+            ?.portal_role !==
+          "makelaar"
+        ) {
+
+          return res
+            .status(403)
+            .json({
+              success: false,
+              error:
+                "Dit contact is geen makelaar"
+            });
+
+        }
+
+
+        return res
+          .status(200)
+          .json({
+
+            success:
+              true,
+
+            contact_id:
+              contact.id,
+
+            settings: {
+
+              firstname:
+                contact.properties
+                  ?.firstname ||
+                "",
+
+              lastname:
+                contact.properties
+                  ?.lastname ||
+                "",
+
+              phone:
+                contact.properties
+                  ?.phone ||
+                "",
+
+              email:
+                contact.properties
+                  ?.email ||
+                "",
+
+              diensten:
+                contact.properties
+                  ?.diensten ||
+                ""
+
+            }
 
           });
 
@@ -1707,6 +1785,11 @@ export default async function handler(
         ticket_id,
         contact_id,
 
+        email,
+        firstname,
+        lastname,
+        phone,
+
         address,
         diensten,
         opmerking_klant,
@@ -1725,6 +1808,165 @@ export default async function handler(
       } =
         req.body ||
         {};
+
+
+      // =======================================
+      // INSTELLINGEN MAKELAAR OPSLAAN
+      // =======================================
+
+      if (
+        action ===
+        "update-contact-settings"
+      ) {
+
+        if (
+          !email
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "email is verplicht"
+            });
+
+        }
+
+
+        const foundContact =
+          await findContactByEmail(
+            email
+          );
+
+
+        if (
+          !foundContact
+        ) {
+
+          return res
+            .status(404)
+            .json({
+              success: false,
+              error:
+                "Contact niet gevonden"
+            });
+
+        }
+
+
+        const currentContact =
+          await getContact(
+            foundContact.id,
+            [
+              "portal_role",
+              "email"
+            ]
+          );
+
+
+        if (
+          currentContact.properties
+            ?.portal_role !==
+          "makelaar"
+        ) {
+
+          return res
+            .status(403)
+            .json({
+              success: false,
+              error:
+                "Dit contact is geen makelaar"
+            });
+
+        }
+
+
+        const properties = {
+
+          firstname:
+            firstname !== undefined
+              ? String(
+                  firstname ||
+                  ""
+                ).trim()
+              : "",
+
+          lastname:
+            lastname !== undefined
+              ? String(
+                  lastname ||
+                  ""
+                ).trim()
+              : "",
+
+          phone:
+            phone !== undefined
+              ? String(
+                  phone ||
+                  ""
+                ).trim()
+              : "",
+
+          diensten:
+            Array.isArray(
+              diensten
+            )
+              ? diensten.join(";")
+              : diensten || ""
+
+        };
+
+
+        const updated =
+          await updateContact(
+            foundContact.id,
+            properties
+          );
+
+
+        return res
+          .status(200)
+          .json({
+
+            success:
+              true,
+
+            contact_id:
+              updated.id,
+
+            settings: {
+
+              firstname:
+                updated.properties
+                  ?.firstname ||
+                "",
+
+              lastname:
+                updated.properties
+                  ?.lastname ||
+                "",
+
+              phone:
+                updated.properties
+                  ?.phone ||
+                "",
+
+              email:
+                currentContact.properties
+                  ?.email ||
+                email,
+
+              diensten:
+                updated.properties
+                  ?.diensten ||
+                ""
+
+            }
+
+          });
+
+      }
 
 
       // =======================================
@@ -2235,7 +2477,7 @@ export default async function handler(
 
 
       // =======================================
-      // MAKELAAR ACTIES
+      // MAKELAAR TICKET-ACTIES
       // =======================================
 
       if (
