@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import * as XLSX from "xlsx";
 
 
 // ==========================================
@@ -332,6 +333,101 @@ async function downloadExcelFile() {
 
 
 // ==========================================
+// EXCEL INSPECTEREN
+// ==========================================
+
+async function inspectExcelFile() {
+
+  const result =
+    await downloadExcelFile();
+
+
+  const workbook =
+    XLSX.read(
+      result.buffer,
+      {
+        type:
+          "buffer",
+
+        cellDates:
+          true
+      }
+    );
+
+
+  const sheets =
+    [];
+
+
+  for (
+    const sheetName of workbook.SheetNames
+  ) {
+
+    const worksheet =
+      workbook.Sheets[
+        sheetName
+      ];
+
+
+    if (!worksheet) {
+
+      continue;
+
+    }
+
+
+    const rows =
+      XLSX.utils.sheet_to_json(
+        worksheet,
+        {
+          header:
+            1,
+
+          defval:
+            null,
+
+          raw:
+            false
+        }
+      );
+
+
+    sheets.push({
+
+      name:
+        sheetName,
+
+      totalRows:
+        rows.length,
+
+      preview:
+        rows.slice(
+          0,
+          20
+        )
+
+    });
+
+  }
+
+
+  return {
+
+    fileInfo:
+      result.fileInfo,
+
+    sheetNames:
+      workbook.SheetNames,
+
+    sheets:
+      sheets
+
+  };
+
+}
+
+
+// ==========================================
 // GEDEELDE BESTANDEN OPHALEN
 // ==========================================
 
@@ -547,6 +643,53 @@ export default async function handler(
               megabytes
 
           }
+
+        });
+
+    }
+
+
+    // ======================================
+    // ACTION: EXCEL INSPECT
+    // ======================================
+
+    if (
+      action ===
+      "excel-inspect"
+    ) {
+
+      const inspection =
+        await inspectExcelFile();
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          file: {
+
+            name:
+              inspection.fileInfo.name,
+
+            driveId:
+              inspection.fileInfo.driveId,
+
+            itemId:
+              inspection.fileInfo.itemId,
+
+            lastModifiedDateTime:
+              inspection.fileInfo.lastModifiedDateTime
+
+          },
+
+          sheetNames:
+            inspection.sheetNames,
+
+          sheets:
+            inspection.sheets
 
         });
 
