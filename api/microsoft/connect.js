@@ -3,6 +3,15 @@ import { createRequire } from "node:module";
 
 
 // ==========================================
+// HUBSPOT PIPELINE STAGES
+// ==========================================
+
+const STAGE_OPNAMEDAG = "5980739821";
+const STAGE_PAKKET_IN_BEHANDELING = "5980739822";
+const STAGE_AFGEROND = "4";
+
+
+// ==========================================
 // MICROSOFT ACCESS TOKEN VIA REFRESH TOKEN
 // ==========================================
 
@@ -343,13 +352,9 @@ function loadXlsx() {
       );
 
 
-    const XLSX =
-      require(
-        "xlsx"
-      );
-
-
-    return XLSX;
+    return require(
+      "xlsx"
+    );
 
   }
 
@@ -371,8 +376,172 @@ function loadXlsx() {
 
 
 // ==========================================
-// BOEKING ZOEKEN OP KOLOM C
-// STATUS LEZEN UIT KOLOM D
+// CELL VALUE
+// ==========================================
+
+function getCellValue(
+  cell
+) {
+
+  if (!cell) {
+    return "";
+  }
+
+
+  return String(
+    cell.v ??
+    cell.w ??
+    ""
+  ).trim();
+
+}
+
+
+// ==========================================
+// EXCEL PRODUCTIESTATUSSEN INLEZEN
+//
+// C = boekingscode
+// D = productiestatus
+// ==========================================
+
+async function getExcelBookingMap() {
+
+  const result =
+    await downloadExcelFile();
+
+
+  const XLSX =
+    loadXlsx();
+
+
+  const workbook =
+    XLSX.read(
+      result.buffer,
+      {
+        type:
+          "buffer",
+
+        cellDates:
+          true
+      }
+    );
+
+
+  const bookings =
+    new Map();
+
+
+  for (
+    const sheetName of workbook.SheetNames
+  ) {
+
+    const worksheet =
+      workbook.Sheets[
+        sheetName
+      ];
+
+
+    if (
+      !worksheet ||
+      !worksheet["!ref"]
+    ) {
+
+      continue;
+
+    }
+
+
+    const range =
+      XLSX.utils.decode_range(
+        worksheet["!ref"]
+      );
+
+
+    for (
+      let row = range.s.r;
+      row <= range.e.r;
+      row++
+    ) {
+
+      const bookingCell =
+        worksheet[
+          XLSX.utils.encode_cell({
+            c: 2,
+            r: row
+          })
+        ];
+
+
+      const statusCell =
+        worksheet[
+          XLSX.utils.encode_cell({
+            c: 3,
+            r: row
+          })
+        ];
+
+
+      const bookingCode =
+        getCellValue(
+          bookingCell
+        )
+          .toLowerCase();
+
+
+      if (!bookingCode) {
+        continue;
+      }
+
+
+      const excelStatus =
+        getCellValue(
+          statusCell
+        )
+          .toLowerCase();
+
+
+      bookings.set(
+        bookingCode,
+        {
+          boekingscode:
+            bookingCode,
+
+          excel_status:
+            excelStatus,
+
+          productiestatus:
+            excelStatus === "done"
+              ? "klaar"
+              : "in_behandeling",
+
+          sheet:
+            sheetName,
+
+          row:
+            row + 1
+        }
+      );
+
+    }
+
+  }
+
+
+  return {
+
+    fileInfo:
+      result.fileInfo,
+
+    bookings:
+      bookings
+
+  };
+
+}
+
+
+// ==========================================
+// ÉÉN BOEKING ZOEKEN
 // ==========================================
 
 async function getBookingStatus(
@@ -397,154 +566,33 @@ async function getBookingStatus(
   }
 
 
-  const result =
-    await downloadExcelFile();
+  const excel =
+    await getExcelBookingMap();
 
 
-  const XLSX =
-    loadXlsx();
-
-
-  const workbook =
-    XLSX.read(
-      result.buffer,
-      {
-        type:
-          "buffer",
-
-        cellDates:
-          true
-      }
+  const booking =
+    excel.bookings.get(
+      cleanBookingCode
     );
 
 
-  for (
-    const sheetName of workbook.SheetNames
-  ) {
+  if (!booking) {
 
-    const worksheet =
-      workbook.Sheets[
-        sheetName
-      ];
+    return {
 
+      found:
+        false,
 
-    if (!worksheet) {
-      continue;
-    }
+      boekingscode:
+        cleanBookingCode,
 
+      excel_status:
+        null,
 
-    const rangeText =
-      worksheet["!ref"];
+      productiestatus:
+        null
 
-
-    if (!rangeText) {
-      continue;
-    }
-
-
-    const range =
-      XLSX.utils.decode_range(
-        rangeText
-      );
-
-
-    for (
-      let row = range.s.r;
-      row <= range.e.r;
-      row++
-    ) {
-
-      const bookingCellAddress =
-        XLSX.utils.encode_cell({
-          c: 2,
-          r: row
-        });
-
-
-      const bookingCell =
-        worksheet[
-          bookingCellAddress
-        ];
-
-
-      if (!bookingCell) {
-        continue;
-      }
-
-
-      const excelBookingCode =
-        String(
-          bookingCell.v ??
-          bookingCell.w ??
-          ""
-        )
-          .trim()
-          .toLowerCase();
-
-
-      if (
-        excelBookingCode !==
-        cleanBookingCode
-      ) {
-
-        continue;
-
-      }
-
-
-      const statusCellAddress =
-        XLSX.utils.encode_cell({
-          c: 3,
-          r: row
-        });
-
-
-      const statusCell =
-        worksheet[
-          statusCellAddress
-        ];
-
-
-      const excelStatus =
-        String(
-          statusCell?.v ??
-          statusCell?.w ??
-          ""
-        )
-          .trim()
-          .toLowerCase();
-
-
-      const productStatus =
-        excelStatus === "done"
-          ? "klaar"
-          : "in_behandeling";
-
-
-      return {
-
-        found:
-          true,
-
-        sheet:
-          sheetName,
-
-        row:
-          row + 1,
-
-        boekingscode:
-          cleanBookingCode,
-
-        excel_status:
-          excelStatus ||
-          null,
-
-        productiestatus:
-          productStatus
-
-      };
-
-    }
+    };
 
   }
 
@@ -552,16 +600,559 @@ async function getBookingStatus(
   return {
 
     found:
-      false,
+      true,
 
-    boekingscode:
-      cleanBookingCode,
+    ...booking
 
-    excel_status:
-      null,
+  };
 
-    productiestatus:
-      null
+}
+
+
+// ==========================================
+// HUBSPOT TOKEN
+// ==========================================
+
+function getHubSpotToken() {
+
+  const token =
+    process.env.HUBSPOT_ACCESS_TOKEN ||
+    process.env.HUBSPOT_PRIVATE_APP_TOKEN ||
+    process.env.HUBSPOT_TOKEN;
+
+
+  if (!token) {
+
+    throw new Error(
+      "HubSpot access token ontbreekt in Vercel."
+    );
+
+  }
+
+
+  return token;
+
+}
+
+
+// ==========================================
+// HUBSPOT REQUEST
+// ==========================================
+
+async function hubSpotRequest(
+  url,
+  options = {}
+) {
+
+  const token =
+    getHubSpotToken();
+
+
+  const response =
+    await fetch(
+      url,
+      {
+        ...options,
+
+        headers: {
+
+          Authorization:
+            `Bearer ${token}`,
+
+          "Content-Type":
+            "application/json",
+
+          ...(options.headers || {})
+
+        }
+      }
+    );
+
+
+  let data =
+    null;
+
+
+  const text =
+    await response.text();
+
+
+  if (text) {
+
+    try {
+
+      data =
+        JSON.parse(
+          text
+        );
+
+    }
+
+    catch {
+
+      data =
+        text;
+
+    }
+
+  }
+
+
+  if (!response.ok) {
+
+    console.error(
+      "HUBSPOT API ERROR",
+      response.status,
+      data
+    );
+
+
+    throw new Error(
+      data?.message ||
+      `HubSpot API fout ${response.status}`
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+// ==========================================
+// HUBSPOT TICKETS MET BOEKINGSCODE OPHALEN
+// ==========================================
+
+async function getHubSpotTicketsWithBookingCode() {
+
+  const tickets =
+    [];
+
+
+  let after =
+    null;
+
+
+  do {
+
+    const body = {
+
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName:
+                "boekingscode",
+
+              operator:
+                "HAS_PROPERTY"
+            }
+          ]
+        }
+      ],
+
+      properties: [
+        "boekingscode",
+        "hs_pipeline_stage",
+        "subject",
+        "adres",
+        "afspraak_start",
+        "afspraak_einde"
+      ],
+
+      limit:
+        100
+    };
+
+
+    if (after) {
+
+      body.after =
+        after;
+
+    }
+
+
+    const data =
+      await hubSpotRequest(
+        "https://api.hubapi.com/crm/v3/objects/tickets/search",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              body
+            )
+        }
+      );
+
+
+    tickets.push(
+      ...(data.results || [])
+    );
+
+
+    after =
+      data.paging?.next?.after ||
+      null;
+
+
+  }
+  while (after);
+
+
+  return tickets;
+
+}
+
+
+// ==========================================
+// HUBSPOT TICKETSTAGE WIJZIGEN
+// ==========================================
+
+async function updateHubSpotTicketStage(
+  ticketId,
+  stageId
+) {
+
+  return hubSpotRequest(
+    `https://api.hubapi.com/crm/v3/objects/tickets/${encodeURIComponent(
+      ticketId
+    )}`,
+    {
+      method:
+        "PATCH",
+
+      body:
+        JSON.stringify({
+
+          properties: {
+
+            hs_pipeline_stage:
+              stageId
+
+          }
+
+        })
+    }
+  );
+
+}
+
+
+// ==========================================
+// BEPALEN WAT ER MET EEN TICKET MOET GEBEUREN
+// ==========================================
+
+function determineTargetStage(
+  currentStage,
+  excelStatus
+) {
+
+  if (
+    currentStage !==
+      STAGE_OPNAMEDAG &&
+    currentStage !==
+      STAGE_PAKKET_IN_BEHANDELING
+  ) {
+
+    return null;
+
+  }
+
+
+  if (
+    excelStatus ===
+    "done"
+  ) {
+
+    return STAGE_AFGEROND;
+
+  }
+
+
+  return STAGE_PAKKET_IN_BEHANDELING;
+
+}
+
+
+// ==========================================
+// HUBSPOT / EXCEL SYNC
+//
+// dryRun = true  -> alleen bekijken
+// dryRun = false -> HubSpot echt wijzigen
+// ==========================================
+
+async function syncHubSpotWithExcel(
+  dryRun = true
+) {
+
+  const excel =
+    await getExcelBookingMap();
+
+
+  const hubSpotTickets =
+    await getHubSpotTicketsWithBookingCode();
+
+
+  const results =
+    [];
+
+
+  let matched =
+    0;
+
+  let changed =
+    0;
+
+  let unchanged =
+    0;
+
+  let skipped =
+    0;
+
+  let notFound =
+    0;
+
+
+  for (
+    const ticket of hubSpotTickets
+  ) {
+
+    const bookingCode =
+      String(
+        ticket.properties?.boekingscode ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const currentStage =
+      String(
+        ticket.properties?.hs_pipeline_stage ||
+        ""
+      );
+
+
+    if (!bookingCode) {
+
+      skipped++;
+
+      continue;
+
+    }
+
+
+    // Alleen productie-gerelateerde stages.
+    if (
+      currentStage !==
+        STAGE_OPNAMEDAG &&
+      currentStage !==
+        STAGE_PAKKET_IN_BEHANDELING
+    ) {
+
+      skipped++;
+
+      continue;
+
+    }
+
+
+    const excelBooking =
+      excel.bookings.get(
+        bookingCode
+      );
+
+
+    if (!excelBooking) {
+
+      notFound++;
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        currentStage:
+          currentStage,
+
+        action:
+          "niet_gevonden_in_excel"
+
+      });
+
+
+      continue;
+
+    }
+
+
+    matched++;
+
+
+    const targetStage =
+      determineTargetStage(
+        currentStage,
+        excelBooking.excel_status
+      );
+
+
+    if (!targetStage) {
+
+      skipped++;
+
+      continue;
+
+    }
+
+
+    if (
+      currentStage ===
+      targetStage
+    ) {
+
+      unchanged++;
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        excel_status:
+          excelBooking.excel_status,
+
+        currentStage:
+          currentStage,
+
+        targetStage:
+          targetStage,
+
+        action:
+          "geen_wijziging"
+
+      });
+
+
+      continue;
+
+    }
+
+
+    if (!dryRun) {
+
+      await updateHubSpotTicketStage(
+        ticket.id,
+        targetStage
+      );
+
+    }
+
+
+    changed++;
+
+
+    results.push({
+
+      ticketId:
+        ticket.id,
+
+      boekingscode:
+        bookingCode,
+
+      adres:
+        ticket.properties?.adres ||
+        null,
+
+      excel_status:
+        excelBooking.excel_status,
+
+      excel_sheet:
+        excelBooking.sheet,
+
+      excel_row:
+        excelBooking.row,
+
+      currentStage:
+        currentStage,
+
+      targetStage:
+        targetStage,
+
+      action:
+        dryRun
+          ? "zou_wijzigen"
+          : "gewijzigd"
+
+    });
+
+  }
+
+
+  return {
+
+    dryRun:
+      dryRun,
+
+    excelFile: {
+
+      name:
+        excel.fileInfo.name,
+
+      lastModifiedDateTime:
+        excel.fileInfo.lastModifiedDateTime,
+
+      bookings:
+        excel.bookings.size
+
+    },
+
+    hubspot: {
+
+      ticketsWithBookingCode:
+        hubSpotTickets.length
+
+    },
+
+    summary: {
+
+      matched:
+        matched,
+
+      changed:
+        changed,
+
+      unchanged:
+        unchanged,
+
+      skipped:
+        skipped,
+
+      notFound:
+        notFound
+
+    },
+
+    results:
+      results
 
   };
 
@@ -683,7 +1274,9 @@ export default async function handler(
     return res
       .status(405)
       .json({
-        success: false,
+        success:
+          false,
+
         message:
           "Method not allowed"
       });
@@ -696,6 +1289,66 @@ export default async function handler(
     const action =
       req.query?.action ||
       "connect";
+
+
+    // ======================================
+    // HUBSPOT SYNC PREVIEW
+    // GEEN WIJZIGINGEN
+    // ======================================
+
+    if (
+      action ===
+      "hubspot-sync-preview"
+    ) {
+
+      const result =
+        await syncHubSpotWithExcel(
+          true
+        );
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          ...result
+
+        });
+
+    }
+
+
+    // ======================================
+    // HUBSPOT SYNC
+    // WIJZIGT TICKETS ECHT
+    // ======================================
+
+    if (
+      action ===
+      "hubspot-sync"
+    ) {
+
+      const result =
+        await syncHubSpotWithExcel(
+          false
+        );
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          ...result
+
+        });
+
+    }
 
 
     // ======================================
@@ -951,9 +1604,13 @@ export default async function handler(
       return res
         .status(500)
         .json({
-          success: false,
+
+          success:
+            false,
+
           message:
             "Microsoft environment variables ontbreken."
+
         });
 
     }
