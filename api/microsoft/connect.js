@@ -91,6 +91,17 @@ async function getAccessToken() {
   }
 
 
+  if (
+    !data.access_token
+  ) {
+
+    throw new Error(
+      "Microsoft heeft geen access token teruggegeven."
+    );
+
+  }
+
+
   return data.access_token;
 
 }
@@ -226,6 +237,94 @@ async function getExcelFileInfo() {
     lastModifiedDateTime:
       data.lastModifiedDateTime ||
       null
+
+  };
+
+}
+
+
+// ==========================================
+// EXCELBESTAND DOWNLOADEN
+// ==========================================
+
+async function downloadExcelFile() {
+
+  const fileInfo =
+    await getExcelFileInfo();
+
+
+  if (
+    !fileInfo.driveId ||
+    !fileInfo.itemId
+  ) {
+
+    throw new Error(
+      "Geen driveId of itemId gevonden voor het Excelbestand."
+    );
+
+  }
+
+
+  const accessToken =
+    await getAccessToken();
+
+
+  const response =
+    await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(
+        fileInfo.driveId
+      )}/items/${encodeURIComponent(
+        fileInfo.itemId
+      )}/content`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${accessToken}`
+        },
+
+        redirect:
+          "follow"
+      }
+    );
+
+
+  if (!response.ok) {
+
+    const text =
+      await response.text();
+
+
+    console.error(
+      "MICROSOFT EXCEL DOWNLOAD ERROR",
+      response.status,
+      text
+    );
+
+
+    throw new Error(
+      `Excel download mislukt: ${response.status}`
+    );
+
+  }
+
+
+  const arrayBuffer =
+    await response.arrayBuffer();
+
+
+  const buffer =
+    Buffer.from(
+      arrayBuffer
+    );
+
+
+  return {
+
+    fileInfo:
+      fileInfo,
+
+    buffer:
+      buffer
 
   };
 
@@ -391,6 +490,70 @@ export default async function handler(
 
 
     // ======================================
+    // ACTION: EXCEL DOWNLOAD TEST
+    // ======================================
+
+    if (
+      action ===
+      "excel-download-test"
+    ) {
+
+      const result =
+        await downloadExcelFile();
+
+
+      const bytes =
+        result.buffer.length;
+
+
+      const megabytes =
+        Number(
+          (
+            bytes /
+            1024 /
+            1024
+          ).toFixed(2)
+        );
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          file: {
+
+            name:
+              result.fileInfo.name,
+
+            driveId:
+              result.fileInfo.driveId,
+
+            itemId:
+              result.fileInfo.itemId,
+
+            mimeType:
+              result.fileInfo.mimeType,
+
+            lastModifiedDateTime:
+              result.fileInfo.lastModifiedDateTime,
+
+            bytes:
+              bytes,
+
+            megabytes:
+              megabytes
+
+          }
+
+        });
+
+    }
+
+
+    // ======================================
     // ACTION: SHARED FILES
     // ======================================
 
@@ -521,8 +684,19 @@ export default async function handler(
   catch (error) {
 
     console.error(
-      "MICROSOFT CONNECT ERROR",
+      "================================"
+    );
+
+    console.error(
+      "MICROSOFT CONNECT ERROR"
+    );
+
+    console.error(
       error
+    );
+
+    console.error(
+      "================================"
     );
 
 
