@@ -976,7 +976,7 @@ async function findDropboxFolderByTag(
 
 
 // ==========================================
-// BESTAANDE DIRECTE SHARED LINK OPHALEN
+// BESTAANDE SHARED LINK
 // ==========================================
 
 async function getExistingDropboxSharedLink(
@@ -1019,6 +1019,9 @@ async function getExistingDropboxSharedLink(
 
   return {
 
+    created:
+      false,
+
     url:
       link.url ||
       null,
@@ -1050,7 +1053,7 @@ async function getExistingDropboxSharedLink(
 
 
 // ==========================================
-// NIEUWE SHARED LINK AANMAKEN
+// NIEUWE SHARED LINK
 // ==========================================
 
 async function createDropboxSharedLink(
@@ -1107,10 +1110,6 @@ async function createDropboxSharedLink(
 
   catch (error) {
 
-    // Er kan theoretisch tussen list + create
-    // al een link ontstaan. Dan gewoon opnieuw
-    // de bestaande link ophalen.
-
     const summary =
       String(
         error?.dropboxData?.error_summary ||
@@ -1134,14 +1133,7 @@ async function createDropboxSharedLink(
 
       if (existing) {
 
-        return {
-
-          created:
-            false,
-
-          ...existing
-
-        };
+        return existing;
 
       }
 
@@ -1171,14 +1163,7 @@ async function getOrCreateDropboxSharedLink(
 
   if (existing) {
 
-    return {
-
-      created:
-        false,
-
-      ...existing
-
-    };
+    return existing;
 
   }
 
@@ -1191,16 +1176,13 @@ async function getOrCreateDropboxSharedLink(
 
 
 // ==========================================
-// DROPBOX LINK TEST OP BOEKINGSCODE
+// DROPBOX PAKKET OPHALEN
 // ==========================================
 
-async function getDropboxPackageLinkByBookingCode(
-  bookingCode
+async function getDropboxPackageByBookingCode(
+  bookingCode,
+  createLink = false
 ) {
-
-  const startedAt =
-    Date.now();
-
 
   const search =
     await findDropboxFolderByTag(
@@ -1214,23 +1196,20 @@ async function getDropboxPackageLinkByBookingCode(
 
     return {
 
-      found:
+      valid:
         false,
+
+      reason:
+        "folder_not_found",
 
       boekingscode:
         search.boekingscode,
 
-      archivePath:
-        DROPBOX_ARCHIVE_PATH,
+      folder:
+        null,
 
-      message:
-        "Geen map met deze boekingscode-tag gevonden in Boykeys - 4rchive.",
-
-      search,
-
-      durationMs:
-        Date.now() -
-        startedAt
+      sharedLink:
+        null
 
     };
 
@@ -1244,27 +1223,23 @@ async function getDropboxPackageLinkByBookingCode(
 
     return {
 
-      found:
-        true,
-
       valid:
         false,
+
+      reason:
+        "multiple_folders_found",
 
       boekingscode:
         search.boekingscode,
 
-      archivePath:
-        DROPBOX_ARCHIVE_PATH,
+      matchesCount:
+        search.matchesCount,
 
-      message:
-        `Er zijn ${search.matchesCount} mappen met deze boekingscode-tag gevonden. Er wordt daarom geen link gekozen.`,
+      folder:
+        null,
 
-      matches:
-        search.matches,
-
-      durationMs:
-        Date.now() -
-        startedAt
+      sharedLink:
+        null
 
     };
 
@@ -1275,36 +1250,39 @@ async function getDropboxPackageLinkByBookingCode(
     search.matches[0];
 
 
-  const sharedLink =
-    await getOrCreateDropboxSharedLink(
+  let sharedLink =
+    await getExistingDropboxSharedLink(
       folder.path
     );
 
 
   if (
-    !sharedLink?.url
+    !sharedLink &&
+    createLink
   ) {
 
-    throw new Error(
-      "Dropbox heeft geen geldige shared-link URL teruggegeven."
-    );
+    sharedLink =
+      await getOrCreateDropboxSharedLink(
+        folder.path
+      );
 
   }
 
 
   return {
 
-    found:
-      true,
-
     valid:
-      true,
+      Boolean(
+        sharedLink?.url
+      ),
+
+    reason:
+      sharedLink?.url
+        ? "ready"
+        : "shared_link_missing",
 
     boekingscode:
       search.boekingscode,
-
-    archivePath:
-      DROPBOX_ARCHIVE_PATH,
 
     folder: {
 
@@ -1322,21 +1300,73 @@ async function getDropboxPackageLinkByBookingCode(
 
     },
 
-    sharedLink: {
+    sharedLink:
+      sharedLink
+        ? {
 
-      url:
-        sharedLink.url,
+            url:
+              sharedLink.url,
 
-      created:
-        Boolean(
-          sharedLink.created
-        ),
+            created:
+              Boolean(
+                sharedLink.created
+              ),
 
-      visibility:
-        sharedLink.visibility ||
-        null
+            visibility:
+              sharedLink.visibility ||
+              null
 
-    },
+          }
+        : null
+
+  };
+
+}
+
+
+// ==========================================
+// DROPBOX LINK TEST
+// ==========================================
+
+async function getDropboxPackageLinkByBookingCode(
+  bookingCode
+) {
+
+  const startedAt =
+    Date.now();
+
+
+  const result =
+    await getDropboxPackageByBookingCode(
+      bookingCode,
+      true
+    );
+
+
+  return {
+
+    found:
+      Boolean(
+        result.folder
+      ),
+
+    valid:
+      result.valid,
+
+    reason:
+      result.reason,
+
+    boekingscode:
+      result.boekingscode,
+
+    archivePath:
+      DROPBOX_ARCHIVE_PATH,
+
+    folder:
+      result.folder,
+
+    sharedLink:
+      result.sharedLink,
 
     durationMs:
       Date.now() -
@@ -1518,12 +1548,6 @@ async function handleDropboxOAuthCallback(
 
   if (!response.ok) {
 
-    console.error(
-      "DROPBOX OAUTH CALLBACK ERROR",
-      data
-    );
-
-
     return res
       .status(500)
       .send(
@@ -1704,12 +1728,6 @@ async function getAccessToken() {
 
   if (!response.ok) {
 
-    console.error(
-      "MICROSOFT REFRESH TOKEN ERROR",
-      data
-    );
-
-
     throw new Error(
       data.error_description ||
       data.error ||
@@ -1776,7 +1794,7 @@ function encodeSharingUrl(
 
 
 // ==========================================
-// EXCELBESTAND INFO
+// EXCEL INFO
 // ==========================================
 
 async function getExcelFileInfo() {
@@ -2256,6 +2274,13 @@ async function hubSpotRequest(
 
   if (!response.ok) {
 
+    console.error(
+      "HUBSPOT API ERROR",
+      response.status,
+      data
+    );
+
+
     throw new Error(
       data?.message ||
       `HubSpot API fout ${response.status}`
@@ -2311,7 +2336,8 @@ async function getHubSpotTicketsWithBookingCode() {
         "subject",
         "adres",
         "afspraak_start",
-        "afspraak_einde"
+        "afspraak_einde",
+        "download_link"
       ],
 
       limit:
@@ -2432,12 +2458,12 @@ async function ticketBelongsToMakelaar(
 
 
 // ==========================================
-// HUBSPOT STAGE UPDATE
+// HUBSPOT TICKET UPDATE
 // ==========================================
 
-async function updateHubSpotTicketStage(
+async function updateHubSpotTicket(
   ticketId,
-  stageId
+  properties
 ) {
 
   return hubSpotRequest(
@@ -2452,12 +2478,7 @@ async function updateHubSpotTicketStage(
       body:
         JSON.stringify({
 
-          properties: {
-
-            hs_pipeline_stage:
-              stageId
-
-          }
+          properties
 
         })
 
@@ -2468,43 +2489,7 @@ async function updateHubSpotTicketStage(
 
 
 // ==========================================
-// TARGET STAGE
-// ==========================================
-
-function determineTargetStage(
-  currentStage,
-  excelStatus
-) {
-
-  if (
-    currentStage !==
-      STAGE_OPNAMEDAG &&
-    currentStage !==
-      STAGE_PAKKET_IN_BEHANDELING
-  ) {
-
-    return null;
-
-  }
-
-
-  if (
-    excelStatus ===
-    "done"
-  ) {
-
-    return STAGE_AFGEROND;
-
-  }
-
-
-  return STAGE_PAKKET_IN_BEHANDELING;
-
-}
-
-
-// ==========================================
-// HUBSPOT / EXCEL SYNC
+// HUBSPOT / EXCEL / DROPBOX SYNC
 // ==========================================
 
 async function syncHubSpotWithExcel(
@@ -2545,6 +2530,18 @@ async function syncHubSpotWithExcel(
   let owned =
     0;
 
+  let dropboxReady =
+    0;
+
+  let dropboxNotFound =
+    0;
+
+  let dropboxMultiple =
+    0;
+
+  let dropboxLinkMissing =
+    0;
+
 
   for (
     const ticket of tickets
@@ -2564,6 +2561,14 @@ async function syncHubSpotWithExcel(
         ticket.properties?.hs_pipeline_stage ||
         ""
       );
+
+
+    const currentDownloadLink =
+      String(
+        ticket.properties?.download_link ||
+        ""
+      )
+        .trim();
 
 
     if (
@@ -2624,19 +2629,419 @@ async function syncHubSpotWithExcel(
     matched++;
 
 
-    const targetStage =
-      determineTargetStage(
+    // ======================================
+    // EXCEL NOG NIET DONE
+    // ======================================
+
+    if (
+      excelBooking.excel_status !==
+      "done"
+    ) {
+
+      const targetStage =
+        STAGE_PAKKET_IN_BEHANDELING;
+
+
+      if (
+        currentStage ===
+        targetStage
+      ) {
+
+        unchanged++;
+
+
+        results.push({
+
+          ticketId:
+            ticket.id,
+
+          boekingscode:
+            bookingCode,
+
+          adres:
+            ticket.properties?.adres ||
+            null,
+
+          excel_status:
+            excelBooking.excel_status,
+
+          currentStage,
+
+          targetStage,
+
+          dropbox:
+            "niet_nodig",
+
+          action:
+            "geen_wijziging"
+
+        });
+
+
+        continue;
+
+      }
+
+
+      if (!dryRun) {
+
+        await updateHubSpotTicket(
+          ticket.id,
+          {
+
+            hs_pipeline_stage:
+              targetStage
+
+          }
+        );
+
+      }
+
+
+      changed++;
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        excel_status:
+          excelBooking.excel_status,
+
         currentStage,
-        excelBooking.excel_status
+
+        targetStage,
+
+        dropbox:
+          "niet_nodig",
+
+        action:
+          dryRun
+            ? "zou_naar_pakket_in_behandeling"
+            : "naar_pakket_in_behandeling"
+
+      });
+
+
+      continue;
+
+    }
+
+
+    // ======================================
+    // EXCEL = DONE
+    // DAN MOET DROPBOX OOK KLOPPEN
+    // ======================================
+
+    const dropboxPackage =
+      await getDropboxPackageByBookingCode(
+        bookingCode,
+        !dryRun
       );
 
 
+    // --------------------------------------
+    // MAP NIET GEVONDEN
+    // --------------------------------------
+
     if (
-      currentStage ===
-      targetStage
+      dropboxPackage.reason ===
+      "folder_not_found"
+    ) {
+
+      dropboxNotFound++;
+
+
+      const targetStage =
+        STAGE_PAKKET_IN_BEHANDELING;
+
+
+      if (
+        currentStage !==
+        targetStage
+      ) {
+
+        if (!dryRun) {
+
+          await updateHubSpotTicket(
+            ticket.id,
+            {
+
+              hs_pipeline_stage:
+                targetStage
+
+            }
+          );
+
+        }
+
+
+        changed++;
+
+      }
+
+      else {
+
+        unchanged++;
+
+      }
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        excel_status:
+          "done",
+
+        currentStage,
+
+        targetStage,
+
+        dropbox:
+          "map_niet_gevonden_in_4rchive",
+
+        action:
+          currentStage ===
+          targetStage
+            ? "wachten_op_dropbox"
+            : (
+              dryRun
+                ? "zou_wachten_op_dropbox"
+                : "wachten_op_dropbox"
+            )
+
+      });
+
+
+      continue;
+
+    }
+
+
+    // --------------------------------------
+    // MEERDERE MAPPEN GEVONDEN
+    // --------------------------------------
+
+    if (
+      dropboxPackage.reason ===
+      "multiple_folders_found"
+    ) {
+
+      dropboxMultiple++;
+
+
+      const targetStage =
+        STAGE_PAKKET_IN_BEHANDELING;
+
+
+      if (
+        currentStage !==
+        targetStage
+      ) {
+
+        if (!dryRun) {
+
+          await updateHubSpotTicket(
+            ticket.id,
+            {
+
+              hs_pipeline_stage:
+                targetStage
+
+            }
+          );
+
+        }
+
+
+        changed++;
+
+      }
+
+      else {
+
+        unchanged++;
+
+      }
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        excel_status:
+          "done",
+
+        currentStage,
+
+        targetStage,
+
+        dropbox:
+          "meerdere_mappen_gevonden",
+
+        matchesCount:
+          dropboxPackage.matchesCount ||
+          null,
+
+        action:
+          "handmatige_controle_nodig"
+
+      });
+
+
+      continue;
+
+    }
+
+
+    // --------------------------------------
+    // PREVIEW:
+    // MAP BESTAAT MAAR NOG GEEN SHARED LINK
+    // --------------------------------------
+
+    if (
+      dropboxPackage.reason ===
+      "shared_link_missing"
+    ) {
+
+      dropboxLinkMissing++;
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        excel_status:
+          "done",
+
+        currentStage,
+
+        targetStage:
+          STAGE_AFGEROND,
+
+        dropbox:
+          "map_gevonden_link_ontbreekt",
+
+        folder:
+          dropboxPackage.folder,
+
+        action:
+          dryRun
+            ? "zou_shared_link_maken_en_afronden"
+            : "shared_link_ontbreekt"
+
+      });
+
+
+      continue;
+
+    }
+
+
+    // --------------------------------------
+    // DROPBOX VOLLEDIG KLAAR
+    // --------------------------------------
+
+    if (
+      !dropboxPackage.valid ||
+      !dropboxPackage.sharedLink?.url
+    ) {
+
+      dropboxLinkMissing++;
+
+      continue;
+
+    }
+
+
+    dropboxReady++;
+
+
+    const downloadLink =
+      dropboxPackage.sharedLink.url;
+
+
+    const needsStageUpdate =
+      currentStage !==
+      STAGE_AFGEROND;
+
+
+    const needsLinkUpdate =
+      currentDownloadLink !==
+      downloadLink;
+
+
+    if (
+      !needsStageUpdate &&
+      !needsLinkUpdate
     ) {
 
       unchanged++;
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        excel_status:
+          "done",
+
+        currentStage,
+
+        targetStage:
+          STAGE_AFGEROND,
+
+        dropbox:
+          "klaar",
+
+        downloadLink,
+
+        action:
+          "geen_wijziging"
+
+      });
+
 
       continue;
 
@@ -2645,9 +3050,17 @@ async function syncHubSpotWithExcel(
 
     if (!dryRun) {
 
-      await updateHubSpotTicketStage(
+      await updateHubSpotTicket(
         ticket.id,
-        targetStage
+        {
+
+          hs_pipeline_stage:
+            STAGE_AFGEROND,
+
+          download_link:
+            downloadLink
+
+        }
       );
 
     }
@@ -2669,16 +3082,30 @@ async function syncHubSpotWithExcel(
         null,
 
       excel_status:
-        excelBooking.excel_status,
+        "done",
 
       currentStage,
 
-      targetStage,
+      targetStage:
+        STAGE_AFGEROND,
+
+      dropbox:
+        "klaar",
+
+      folder:
+        dropboxPackage.folder,
+
+      downloadLink,
+
+      sharedLinkCreated:
+        Boolean(
+          dropboxPackage.sharedLink.created
+        ),
 
       action:
         dryRun
-          ? "zou_wijzigen"
-          : "gewijzigd"
+          ? "zou_download_link_opslaan_en_afronden"
+          : "download_link_opgeslagen_en_afgerond"
 
     });
 
@@ -2738,7 +3165,15 @@ async function syncHubSpotWithExcel(
       notOwned:
         contactId
           ? notOwned
-          : 0
+          : 0,
+
+      dropboxReady,
+
+      dropboxNotFound,
+
+      dropboxMultiple,
+
+      dropboxLinkMissing
 
     },
 
@@ -2971,7 +3406,7 @@ export default async function handler(
 
 
     // ======================================
-    // DROPBOX SHARED LINK TEST
+    // DROPBOX LINK TEST
     // ======================================
 
     if (
@@ -3006,49 +3441,16 @@ export default async function handler(
         );
 
 
-      if (
-        !result.found
-      ) {
-
-        return res
-          .status(404)
-          .json({
-
-            success:
-              false,
-
-            ...result
-
-          });
-
-      }
-
-
-      if (
-        result.valid ===
-        false
-      ) {
-
-        return res
-          .status(409)
-          .json({
-
-            success:
-              false,
-
-            ...result
-
-          });
-
-      }
-
-
       return res
-        .status(200)
+        .status(
+          result.valid
+            ? 200
+            : 404
+        )
         .json({
 
           success:
-            true,
+            result.valid,
 
           ...result
 
