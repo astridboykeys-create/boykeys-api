@@ -25,6 +25,14 @@ const ASSOCIATION_TYPE_MAKELAAR =
 
 
 // ==========================================
+// DROPBOX
+// ==========================================
+
+const DROPBOX_REDIRECT_URI =
+  "https://boykeys-api.vercel.app/api/microsoft/connect";
+
+
+// ==========================================
 // CORS
 // ==========================================
 
@@ -70,25 +78,231 @@ function enableCors(
 
 
 // ==========================================
-// DROPBOX ACCESS TOKEN
+// COOKIE UITLEZEN
 // ==========================================
 
-function getDropboxAccessToken() {
+function getCookie(
+  req,
+  name
+) {
 
-  const token =
-    process.env.DROPBOX_ACCESS_TOKEN;
+  const cookieHeader =
+    req.headers?.cookie ||
+    "";
 
 
-  if (!token) {
+  const cookies =
+    cookieHeader
+      .split(";")
+      .map(
+        value =>
+          value.trim()
+      );
+
+
+  for (
+    const cookie of cookies
+  ) {
+
+    const index =
+      cookie.indexOf("=");
+
+
+    if (
+      index === -1
+    ) {
+
+      continue;
+
+    }
+
+
+    const cookieName =
+      cookie.slice(
+        0,
+        index
+      );
+
+
+    const cookieValue =
+      cookie.slice(
+        index + 1
+      );
+
+
+    if (
+      cookieName ===
+      name
+    ) {
+
+      return decodeURIComponent(
+        cookieValue
+      );
+
+    }
+
+  }
+
+
+  return null;
+
+}
+
+
+// ==========================================
+// DROPBOX APP SETTINGS
+// ==========================================
+
+function getDropboxAppSettings() {
+
+  const appKey =
+    process.env.DROPBOX_APP_KEY;
+
+  const appSecret =
+    process.env.DROPBOX_APP_SECRET;
+
+
+  if (
+    !appKey ||
+    !appSecret
+  ) {
 
     throw new Error(
-      "DROPBOX_ACCESS_TOKEN ontbreekt in Vercel."
+      "DROPBOX_APP_KEY of DROPBOX_APP_SECRET ontbreekt in Vercel."
     );
 
   }
 
 
-  return token;
+  return {
+
+    appKey:
+      appKey,
+
+    appSecret:
+      appSecret
+
+  };
+
+}
+
+
+// ==========================================
+// DROPBOX ACCESS TOKEN VIA REFRESH TOKEN
+// ==========================================
+
+async function getDropboxAccessToken() {
+
+  const refreshToken =
+    process.env.DROPBOX_REFRESH_TOKEN;
+
+
+  // --------------------------------------
+  // Definitieve productieflow
+  // --------------------------------------
+
+  if (refreshToken) {
+
+    const {
+      appKey,
+      appSecret
+    } =
+      getDropboxAppSettings();
+
+
+    const response =
+      await fetch(
+        "https://api.dropboxapi.com/oauth2/token",
+        {
+
+          method:
+            "POST",
+
+          headers: {
+
+            "Content-Type":
+              "application/x-www-form-urlencoded"
+
+          },
+
+          body:
+            new URLSearchParams({
+
+              grant_type:
+                "refresh_token",
+
+              refresh_token:
+                refreshToken,
+
+              client_id:
+                appKey,
+
+              client_secret:
+                appSecret
+
+            })
+
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      console.error(
+        "DROPBOX REFRESH TOKEN ERROR",
+        data
+      );
+
+
+      throw new Error(
+        data.error_description ||
+        data.error ||
+        "Dropbox access token vernieuwen mislukt."
+      );
+
+    }
+
+
+    if (
+      !data.access_token
+    ) {
+
+      throw new Error(
+        "Dropbox heeft geen access token teruggegeven."
+      );
+
+    }
+
+
+    return data.access_token;
+
+  }
+
+
+  // --------------------------------------
+  // Tijdelijke oude testtoken
+  // --------------------------------------
+
+  const temporaryToken =
+    process.env.DROPBOX_ACCESS_TOKEN;
+
+
+  if (
+    temporaryToken
+  ) {
+
+    return temporaryToken;
+
+  }
+
+
+  throw new Error(
+    "Geen DROPBOX_REFRESH_TOKEN of DROPBOX_ACCESS_TOKEN gevonden."
+  );
 
 }
 
@@ -103,7 +317,7 @@ async function dropboxRequest(
 ) {
 
   const accessToken =
-    getDropboxAccessToken();
+    await getDropboxAccessToken();
 
 
   const response =
@@ -186,7 +400,7 @@ async function dropboxRequest(
 
 
 // ==========================================
-// DROPBOX ACCOUNT TESTEN
+// DROPBOX VERBINDING TESTEN
 // ==========================================
 
 async function testDropboxConnection() {
@@ -286,6 +500,381 @@ async function testDropboxConnection() {
     }
 
   };
+
+}
+
+
+// ==========================================
+// DROPBOX OAUTH START
+// ==========================================
+
+function startDropboxOAuth(
+  req,
+  res
+) {
+
+  const {
+    appKey
+  } =
+    getDropboxAppSettings();
+
+
+  const state =
+    crypto
+      .randomBytes(24)
+      .toString("hex");
+
+
+  res.setHeader(
+    "Set-Cookie",
+    [
+      `dropbox_oauth_state=${state}`,
+      "HttpOnly",
+      "Secure",
+      "SameSite=Lax",
+      "Path=/",
+      "Max-Age=600"
+    ].join("; ")
+  );
+
+
+  const params =
+    new URLSearchParams({
+
+      client_id:
+        appKey,
+
+      response_type:
+        "code",
+
+      redirect_uri:
+        DROPBOX_REDIRECT_URI,
+
+      token_access_type:
+        "offline",
+
+      state:
+        state
+
+    });
+
+
+  const authorizationUrl =
+    `https://www.dropbox.com/oauth2/authorize?${params.toString()}`;
+
+
+  return res.redirect(
+    302,
+    authorizationUrl
+  );
+
+}
+
+
+// ==========================================
+// DROPBOX OAUTH CALLBACK
+// ==========================================
+
+async function handleDropboxOAuthCallback(
+  req,
+  res
+) {
+
+  const code =
+    String(
+      req.query?.code ||
+      ""
+    );
+
+
+  const state =
+    String(
+      req.query?.state ||
+      ""
+    );
+
+
+  const storedState =
+    getCookie(
+      req,
+      "dropbox_oauth_state"
+    );
+
+
+  if (
+    !code ||
+    !state
+  ) {
+
+    return res
+      .status(400)
+      .send(
+        "Dropbox OAuth code of state ontbreekt."
+      );
+
+  }
+
+
+  if (
+    !storedState ||
+    state !== storedState
+  ) {
+
+    return res
+      .status(400)
+      .send(
+        "Dropbox OAuth state klopt niet of is verlopen."
+      );
+
+  }
+
+
+  const {
+    appKey,
+    appSecret
+  } =
+    getDropboxAppSettings();
+
+
+  const response =
+    await fetch(
+      "https://api.dropboxapi.com/oauth2/token",
+      {
+
+        method:
+          "POST",
+
+        headers: {
+
+          "Content-Type":
+            "application/x-www-form-urlencoded"
+
+        },
+
+        body:
+          new URLSearchParams({
+
+            code:
+              code,
+
+            grant_type:
+              "authorization_code",
+
+            client_id:
+              appKey,
+
+            client_secret:
+              appSecret,
+
+            redirect_uri:
+              DROPBOX_REDIRECT_URI
+
+          })
+
+      }
+    );
+
+
+  const data =
+    await response.json();
+
+
+  if (!response.ok) {
+
+    console.error(
+      "DROPBOX OAUTH CALLBACK ERROR",
+      data
+    );
+
+
+    return res
+      .status(500)
+      .send(
+        `Dropbox koppelen mislukt: ${
+          data.error_description ||
+          data.error ||
+          "onbekende fout"
+        }`
+      );
+
+  }
+
+
+  if (
+    !data.refresh_token
+  ) {
+
+    console.error(
+      "DROPBOX GEEN REFRESH TOKEN",
+      data
+    );
+
+
+    return res
+      .status(500)
+      .send(
+        "Dropbox heeft geen refresh token teruggegeven. Controleer of token_access_type=offline wordt gebruikt."
+      );
+
+  }
+
+
+  res.setHeader(
+    "Set-Cookie",
+    [
+      "dropbox_oauth_state=",
+      "HttpOnly",
+      "Secure",
+      "SameSite=Lax",
+      "Path=/",
+      "Max-Age=0"
+    ].join("; ")
+  );
+
+
+  const safeRefreshToken =
+    String(
+      data.refresh_token
+    )
+      .replace(
+        /&/g,
+        "&amp;"
+      )
+      .replace(
+        /</g,
+        "&lt;"
+      )
+      .replace(
+        />/g,
+        "&gt;"
+      )
+      .replace(
+        /"/g,
+        "&quot;"
+      )
+      .replace(
+        /'/g,
+        "&#039;"
+      );
+
+
+  return res
+    .status(200)
+    .send(`
+      <!doctype html>
+      <html lang="nl">
+        <head>
+          <meta charset="utf-8">
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1"
+          >
+          <title>Dropbox gekoppeld</title>
+
+          <style>
+            body {
+              font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+
+              max-width:
+                760px;
+
+              margin:
+                60px auto;
+
+              padding:
+                0 24px;
+
+              color:
+                #1f2937;
+            }
+
+            .box {
+              border:
+                1px solid #d1d5db;
+
+              border-radius:
+                12px;
+
+              padding:
+                24px;
+            }
+
+            h1 {
+              margin-top:
+                0;
+            }
+
+            code {
+              display:
+                block;
+
+              padding:
+                14px;
+
+              margin:
+                16px 0;
+
+              background:
+                #f3f4f6;
+
+              border-radius:
+                8px;
+
+              word-break:
+                break-all;
+            }
+
+            .warning {
+              font-weight:
+                600;
+            }
+          </style>
+        </head>
+
+        <body>
+
+          <div class="box">
+
+            <h1>
+              Dropbox is gekoppeld
+            </h1>
+
+            <p>
+              De OAuth-koppeling is gelukt.
+            </p>
+
+            <p>
+              Maak nu in Vercel één nieuwe environment variable:
+            </p>
+
+            <strong>
+              DROPBOX_REFRESH_TOKEN
+            </strong>
+
+            <p>
+              Gebruik hiervoor onderstaande waarde:
+            </p>
+
+            <code>${safeRefreshToken}</code>
+
+            <p class="warning">
+              Deel deze waarde nergens en plaats hem niet in ChatGPT.
+            </p>
+
+            <p>
+              Nadat je hem in Vercel hebt opgeslagen en opnieuw hebt gedeployed,
+              kun je deze pagina sluiten.
+            </p>
+
+          </div>
+
+        </body>
+      </html>
+    `);
 
 }
 
@@ -1605,7 +2194,7 @@ async function syncHubSpotWithExcel(
 
 
 // ==========================================
-// GEDEELDE BESTANDEN OPHALEN
+// GEDEELDE MICROSOFT BESTANDEN
 // ==========================================
 
 async function getSharedFiles() {
@@ -1749,9 +2338,54 @@ export default async function handler(
 
   try {
 
+    // ======================================
+    // DROPBOX OAUTH CALLBACK
+    //
+    // Dropbox komt zonder action terug op
+    // dezelfde URL.
+    // ======================================
+
+    const dropboxState =
+      getCookie(
+        req,
+        "dropbox_oauth_state"
+      );
+
+
+    if (
+      req.query?.code &&
+      req.query?.state &&
+      dropboxState
+    ) {
+
+      return await handleDropboxOAuthCallback(
+        req,
+        res
+      );
+
+    }
+
+
     const action =
       req.query?.action ||
       "connect";
+
+
+    // ======================================
+    // DROPBOX CONNECT
+    // ======================================
+
+    if (
+      action ===
+      "dropbox-connect"
+    ) {
+
+      return startDropboxOAuth(
+        req,
+        res
+      );
+
+    }
 
 
     // ======================================
@@ -1776,6 +2410,11 @@ export default async function handler(
 
           message:
             "Dropbox verbinding werkt.",
+
+          authentication:
+            process.env.DROPBOX_REFRESH_TOKEN
+              ? "refresh_token"
+              : "temporary_access_token",
 
           dropbox:
             result
@@ -2190,7 +2829,7 @@ export default async function handler(
   catch (error) {
 
     console.error(
-      "MICROSOFT CONNECT ERROR",
+      "INTEGRATION CONNECT ERROR",
       error
     );
 
