@@ -500,115 +500,43 @@ async function testDropboxConnection() {
 
 
 // ==========================================
-// DROPBOX ARCHIVE RECURSIEF UITLEZEN
+// DROPBOX SEARCH RESULT METADATA
 // ==========================================
 
-async function getDropboxArchiveFolders() {
+function getDropboxSearchMetadata(
+  match
+) {
 
-  const folders =
-    [];
+  if (!match) {
 
-
-  let response =
-    await dropboxRequest(
-      "files/list_folder",
-      {
-
-        path:
-          DROPBOX_ARCHIVE_PATH,
-
-        recursive:
-          true,
-
-        include_deleted:
-          false,
-
-        include_has_explicit_shared_members:
-          false,
-
-        include_mounted_folders:
-          true,
-
-        limit:
-          2000
-
-      }
-    );
-
-
-  while (true) {
-
-    for (
-      const item of
-      response.entries ||
-      []
-    ) {
-
-      if (
-        item[".tag"] !==
-        "folder"
-      ) {
-
-        continue;
-
-      }
-
-
-      const path =
-        item.path_display ||
-        item.path_lower ||
-        null;
-
-
-      if (!path) {
-
-        continue;
-
-      }
-
-
-      folders.push({
-
-        id:
-          item.id ||
-          null,
-
-        name:
-          item.name ||
-          null,
-
-        path:
-          path
-
-      });
-
-    }
-
-
-    if (
-      !response.has_more
-    ) {
-
-      break;
-
-    }
-
-
-    response =
-      await dropboxRequest(
-        "files/list_folder/continue",
-        {
-
-          cursor:
-            response.cursor
-
-        }
-      );
+    return null;
 
   }
 
 
-  return folders;
+  const wrapper =
+    match.metadata;
+
+
+  if (!wrapper) {
+
+    return null;
+
+  }
+
+
+  // Dropbox SearchV2 stopt metadata meestal
+  // in metadata.metadata.
+  if (
+    wrapper.metadata
+  ) {
+
+    return wrapper.metadata;
+
+  }
+
+
+  return wrapper;
 
 }
 
@@ -622,7 +550,9 @@ async function getDropboxTagsForPaths(
 ) {
 
   if (
-    !Array.isArray(paths) ||
+    !Array.isArray(
+      paths
+    ) ||
     paths.length === 0
   ) {
 
@@ -631,60 +561,36 @@ async function getDropboxTagsForPaths(
   }
 
 
-  const allResults =
-    [];
+  const result =
+    await dropboxRequest(
+      "files/tags/get",
+      {
 
+        paths:
+          paths
 
-  // Kleine batches houden de requests overzichtelijk.
-  const batchSize =
-    100;
-
-
-  for (
-    let index = 0;
-    index < paths.length;
-    index += batchSize
-  ) {
-
-    const batch =
-      paths.slice(
-        index,
-        index + batchSize
-      );
-
-
-    const data =
-      await dropboxRequest(
-        "files/tags/get",
-        {
-
-          paths:
-            batch
-
-        }
-      );
-
-
-    allResults.push(
-      ...(
-        data.paths_to_tags ||
-        []
-      )
+      }
     );
 
-  }
 
-
-  return allResults;
+  return (
+    result.paths_to_tags ||
+    []
+  );
 
 }
 
 
 // ==========================================
-// DROPBOX MAP ZOEKEN OP BOEKINGSCODE-TAG
+// DROPBOX MAP SNEL ZOEKEN OP TAG
 //
-// Alleen binnen:
-// /Boykeys - 4rchive
+// 1. Dropbox SearchV2 zoekt gericht binnen
+//    /Boykeys - 4rchive.
+//
+// 2. Alleen gevonden kandidaten worden
+//    gecontroleerd via files/tags/get.
+//
+// 3. Alleen EXACTE tag = boekingscode telt.
 // ==========================================
 
 async function findDropboxFolderByTag(
@@ -709,12 +615,178 @@ async function findDropboxFolderByTag(
   }
 
 
-  const folders =
-    await getDropboxArchiveFolders();
+  const startedAt =
+    Date.now();
 
+
+  // --------------------------------------
+  // Dropbox zelf laten zoeken
+  // --------------------------------------
+
+  const search =
+    await dropboxRequest(
+      "files/search_v2",
+      {
+
+        query:
+          cleanCode,
+
+        options: {
+
+          path:
+            DROPBOX_ARCHIVE_PATH,
+
+          max_results:
+            100,
+
+          file_status:
+            "active",
+
+          filename_only:
+            false
+
+        },
+
+        match_field_options: {
+
+          include_highlights:
+            false
+
+        }
+
+      }
+    );
+
+
+  const rawMatches =
+    search.matches ||
+    [];
+
+
+  // --------------------------------------
+  // Kandidaten normaliseren
+  // --------------------------------------
+
+  const candidates =
+    [];
+
+
+  const seenPaths =
+    new Set();
+
+
+  for (
+    const match of rawMatches
+  ) {
+
+    const metadata =
+      getDropboxSearchMetadata(
+        match
+      );
+
+
+    if (!metadata) {
+
+      continue;
+
+    }
+
+
+    if (
+      metadata[".tag"] !==
+      "folder"
+    ) {
+
+      continue;
+
+    }
+
+
+    const path =
+      metadata.path_display ||
+      metadata.path_lower ||
+      null;
+
+
+    if (!path) {
+
+      continue;
+
+    }
+
+
+    const lowerPath =
+      String(
+        path
+      ).toLowerCase();
+
+
+    const lowerArchivePath =
+      DROPBOX_ARCHIVE_PATH
+        .toLowerCase();
+
+
+    // Extra veiligheidscheck:
+    // absoluut niets buiten 4rchive toelaten.
+    if (
+      lowerPath !==
+        lowerArchivePath &&
+      !lowerPath.startsWith(
+        `${lowerArchivePath}/`
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    if (
+      seenPaths.has(
+        lowerPath
+      )
+    ) {
+
+      continue;
+
+    }
+
+
+    seenPaths.add(
+      lowerPath
+    );
+
+
+    candidates.push({
+
+      id:
+        metadata.id ||
+        null,
+
+      name:
+        metadata.name ||
+        null,
+
+      path:
+        path,
+
+      matchType:
+        match.match_type?.[".tag"] ||
+        match.match_type ||
+        null
+
+    });
+
+  }
+
+
+  // --------------------------------------
+  // Geen zoekresultaten
+  // --------------------------------------
 
   if (
-    folders.length === 0
+    candidates.length ===
+    0
   ) {
 
     return {
@@ -728,8 +800,21 @@ async function findDropboxFolderByTag(
       archivePath:
         DROPBOX_ARCHIVE_PATH,
 
-      foldersChecked:
+      searchMatches:
+        rawMatches.length,
+
+      folderCandidates:
         0,
+
+      tagsChecked:
+        0,
+
+      matchesCount:
+        0,
+
+      durationMs:
+        Date.now() -
+        startedAt,
 
       matches:
         []
@@ -739,32 +824,30 @@ async function findDropboxFolderByTag(
   }
 
 
-  const paths =
-    folders.map(
-      folder =>
-        folder.path
-    );
-
+  // --------------------------------------
+  // Alleen kandidaten hun tags ophalen
+  // --------------------------------------
 
   const tagsResults =
     await getDropboxTagsForPaths(
-      paths
+      candidates.map(
+        item =>
+          item.path
+      )
     );
 
 
-  const folderByPath =
+  const candidateByPath =
     new Map();
 
 
   for (
-    const folder of folders
+    const candidate of candidates
   ) {
 
-    folderByPath.set(
-      String(
-        folder.path
-      ).toLowerCase(),
-      folder
+    candidateByPath.set(
+      candidate.path.toLowerCase(),
+      candidate
     );
 
   }
@@ -774,22 +857,86 @@ async function findDropboxFolderByTag(
     [];
 
 
+  // --------------------------------------
+  // Exacte boekingscode-tag controleren
+  // --------------------------------------
+
   for (
     const item of tagsResults
   ) {
 
+    const path =
+      item.path ||
+      null;
+
+
+    if (!path) {
+
+      continue;
+
+    }
+
+
+    const candidate =
+      candidateByPath.get(
+        String(
+          path
+        ).toLowerCase()
+      );
+
+
+    if (!candidate) {
+
+      continue;
+
+    }
+
+
     const tags =
-      item.tags ||
-      [];
+      (
+        item.tags ||
+        []
+      )
+        .map(
+          tag => {
+
+            if (
+              tag?.tag_text
+            ) {
+
+              return String(
+                tag.tag_text
+              );
+
+            }
 
 
-    const matchingTags =
-      tags.filter(
+            if (
+              tag?.user_generated_tag?.tag_text
+            ) {
+
+              return String(
+                tag
+                  .user_generated_tag
+                  .tag_text
+              );
+
+            }
+
+
+            return "";
+
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    const hasExactBookingTag =
+      tags.some(
         tag =>
-          String(
-            tag.tag_text ||
-            ""
-          )
+          tag
             .trim()
             .toLowerCase() ===
           cleanCode
@@ -797,8 +944,7 @@ async function findDropboxFolderByTag(
 
 
     if (
-      matchingTags.length ===
-      0
+      !hasExactBookingTag
     ) {
 
       continue;
@@ -806,52 +952,22 @@ async function findDropboxFolderByTag(
     }
 
 
-    const path =
-      item.path ||
-      null;
-
-
-    const folder =
-      path
-        ? folderByPath.get(
-            String(
-              path
-            ).toLowerCase()
-          )
-        : null;
-
-
     matches.push({
 
       id:
-        folder?.id ||
-        null,
+        candidate.id,
 
       name:
-        folder?.name ||
-        (
-          path
-            ? String(
-                path
-              )
-                .split("/")
-                .pop()
-            : null
-        ),
+        candidate.name,
 
       path:
-        path,
+        candidate.path,
 
       tags:
-        tags
-          .map(
-            tag =>
-              tag.tag_text ||
-              null
-          )
-          .filter(
-            Boolean
-          )
+        tags,
+
+      matchType:
+        candidate.matchType
 
     });
 
@@ -870,11 +986,21 @@ async function findDropboxFolderByTag(
     archivePath:
       DROPBOX_ARCHIVE_PATH,
 
-    foldersChecked:
-      folders.length,
+    searchMatches:
+      rawMatches.length,
+
+    folderCandidates:
+      candidates.length,
+
+    tagsChecked:
+      tagsResults.length,
 
     matchesCount:
       matches.length,
+
+    durationMs:
+      Date.now() -
+      startedAt,
 
     matches:
       matches
@@ -1174,7 +1300,7 @@ async function handleDropboxOAuthCallback(
 
 
 // ==========================================
-// MICROSOFT ACCESS TOKEN
+// MICROSOFT ACCESS TOKEN VIA REFRESH TOKEN
 // ==========================================
 
 async function getAccessToken() {
@@ -1323,7 +1449,7 @@ function encodeSharingUrl(
 
 
 // ==========================================
-// EXCELBESTAND VIA SHARELINK
+// EXCELBESTAND VIA SHARELINK OPHALEN
 // ==========================================
 
 async function getExcelFileInfo() {
@@ -1372,6 +1498,12 @@ async function getExcelFileInfo() {
 
 
   if (!response.ok) {
+
+    console.error(
+      "MICROSOFT EXCEL FILE ERROR",
+      data
+    );
+
 
     throw new Error(
       data.error?.message ||
@@ -1426,6 +1558,18 @@ async function downloadExcelFile() {
     await getExcelFileInfo();
 
 
+  if (
+    !fileInfo.driveId ||
+    !fileInfo.itemId
+  ) {
+
+    throw new Error(
+      "Geen driveId of itemId gevonden voor het Excelbestand."
+    );
+
+  }
+
+
   const accessToken =
     await getAccessToken();
 
@@ -1455,6 +1599,17 @@ async function downloadExcelFile() {
 
   if (!response.ok) {
 
+    const text =
+      await response.text();
+
+
+    console.error(
+      "MICROSOFT EXCEL DOWNLOAD ERROR",
+      response.status,
+      text
+    );
+
+
     throw new Error(
       `Excel download mislukt: ${response.status}`
     );
@@ -1466,15 +1621,19 @@ async function downloadExcelFile() {
     await response.arrayBuffer();
 
 
+  const buffer =
+    Buffer.from(
+      arrayBuffer
+    );
+
+
   return {
 
     fileInfo:
       fileInfo,
 
     buffer:
-      Buffer.from(
-        arrayBuffer
-      )
+      buffer
 
   };
 
@@ -1482,20 +1641,38 @@ async function downloadExcelFile() {
 
 
 // ==========================================
-// XLSX PACKAGE
+// XLSX PACKAGE LADEN
 // ==========================================
 
 function loadXlsx() {
 
-  const require =
-    createRequire(
-      import.meta.url
+  try {
+
+    const require =
+      createRequire(
+        import.meta.url
+      );
+
+
+    return require(
+      "xlsx"
+    );
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "XLSX PACKAGE LOAD ERROR",
+      error
     );
 
 
-  return require(
-    "xlsx"
-  );
+    throw new Error(
+      `XLSX package kon niet worden geladen: ${error.message}`
+    );
+
+  }
 
 }
 
@@ -1525,7 +1702,10 @@ function getCellValue(
 
 
 // ==========================================
-// EXCEL PRODUCTIESTATUS
+// EXCEL PRODUCTIESTATUSSEN INLEZEN
+//
+// C = boekingscode
+// D = productiestatus
 // ==========================================
 
 async function getExcelBookingMap() {
@@ -1589,14 +1769,27 @@ async function getExcelBookingMap() {
       row++
     ) {
 
+      const bookingCell =
+        worksheet[
+          XLSX.utils.encode_cell({
+            c: 2,
+            r: row
+          })
+        ];
+
+
+      const statusCell =
+        worksheet[
+          XLSX.utils.encode_cell({
+            c: 3,
+            r: row
+          })
+        ];
+
+
       const bookingCode =
         getCellValue(
-          worksheet[
-            XLSX.utils.encode_cell({
-              c: 2,
-              r: row
-            })
-          ]
+          bookingCell
         )
           .toLowerCase();
 
@@ -1610,12 +1803,7 @@ async function getExcelBookingMap() {
 
       const excelStatus =
         getCellValue(
-          worksheet[
-            XLSX.utils.encode_cell({
-              c: 3,
-              r: row
-            })
-          ]
+          statusCell
         )
           .toLowerCase();
 
@@ -1663,14 +1851,14 @@ async function getExcelBookingMap() {
 
 
 // ==========================================
-// BOEKING STATUS
+// ÉÉN BOEKING ZOEKEN
 // ==========================================
 
 async function getBookingStatus(
   bookingCode
 ) {
 
-  const cleanCode =
+  const cleanBookingCode =
     String(
       bookingCode ||
       ""
@@ -1679,13 +1867,22 @@ async function getBookingStatus(
       .toLowerCase();
 
 
+  if (!cleanBookingCode) {
+
+    throw new Error(
+      "Geen boekingscode opgegeven."
+    );
+
+  }
+
+
   const excel =
     await getExcelBookingMap();
 
 
   const booking =
     excel.bookings.get(
-      cleanCode
+      cleanBookingCode
     );
 
 
@@ -1697,7 +1894,13 @@ async function getBookingStatus(
         false,
 
       boekingscode:
-        cleanCode
+        cleanBookingCode,
+
+      excel_status:
+        null,
+
+      productiestatus:
+        null
 
     };
 
@@ -1751,6 +1954,10 @@ async function hubSpotRequest(
   options = {}
 ) {
 
+  const token =
+    getHubSpotToken();
+
+
   const response =
     await fetch(
       url,
@@ -1761,7 +1968,7 @@ async function hubSpotRequest(
         headers: {
 
           Authorization:
-            `Bearer ${getHubSpotToken()}`,
+            `Bearer ${token}`,
 
           "Content-Type":
             "application/json",
@@ -1774,12 +1981,12 @@ async function hubSpotRequest(
     );
 
 
-  const text =
-    await response.text();
-
-
   let data =
     null;
+
+
+  const text =
+    await response.text();
 
 
   if (text) {
@@ -1805,6 +2012,13 @@ async function hubSpotRequest(
 
   if (!response.ok) {
 
+    console.error(
+      "HUBSPOT API ERROR",
+      response.status,
+      data
+    );
+
+
     throw new Error(
       data?.message ||
       `HubSpot API fout ${response.status}`
@@ -1819,7 +2033,7 @@ async function hubSpotRequest(
 
 
 // ==========================================
-// HUBSPOT TICKETS
+// HUBSPOT TICKETS MET BOEKINGSCODE OPHALEN
 // ==========================================
 
 async function getHubSpotTicketsWithBookingCode() {
@@ -1903,6 +2117,7 @@ async function getHubSpotTicketsWithBookingCode() {
       data.paging?.next?.after ||
       null;
 
+
   }
   while (after);
 
@@ -1913,13 +2128,27 @@ async function getHubSpotTicketsWithBookingCode() {
 
 
 // ==========================================
-// TICKET VAN MAKELAAR?
+// CONTROLEREN OF TICKET VAN MAKELAAR IS
 // ==========================================
 
 async function ticketBelongsToMakelaar(
   ticketId,
   contactId
 ) {
+
+  const wantedContactId =
+    String(
+      contactId ||
+      ""
+    );
+
+
+  if (!wantedContactId) {
+
+    return false;
+
+  }
+
 
   const data =
     await hubSpotRequest(
@@ -1929,22 +2158,26 @@ async function ticketBelongsToMakelaar(
     );
 
 
-  for (
-    const association of
+  const results =
     data.results ||
-    []
+    [];
+
+
+  for (
+    const association of results
   ) {
 
-    if (
+    const associatedContactId =
       String(
         association.toObjectId ||
         association.id ||
         ""
-      ) !==
-      String(
-        contactId ||
-        ""
-      )
+      );
+
+
+    if (
+      associatedContactId !==
+      wantedContactId
     ) {
 
       continue;
@@ -1952,21 +2185,23 @@ async function ticketBelongsToMakelaar(
     }
 
 
-    const types =
+    const associationTypes =
       association.associationTypes ||
       association.types ||
       [];
 
 
-    if (
-      types.some(
+    const isMakelaar =
+      associationTypes.some(
         type =>
           Number(
             type.typeId
           ) ===
           ASSOCIATION_TYPE_MAKELAAR
-      )
-    ) {
+      );
+
+
+    if (isMakelaar) {
 
       return true;
 
@@ -1981,7 +2216,7 @@ async function ticketBelongsToMakelaar(
 
 
 // ==========================================
-// TICKETSTAGE WIJZIGEN
+// HUBSPOT TICKETSTAGE WIJZIGEN
 // ==========================================
 
 async function updateHubSpotTicketStage(
@@ -2017,7 +2252,7 @@ async function updateHubSpotTicketStage(
 
 
 // ==========================================
-// DOELSTAGE
+// BEPALEN WAT ER MET EEN TICKET MOET GEBEUREN
 // ==========================================
 
 function determineTargetStage(
@@ -2065,7 +2300,7 @@ async function syncHubSpotWithExcel(
     await getExcelBookingMap();
 
 
-  const tickets =
+  const hubSpotTickets =
     await getHubSpotTicketsWithBookingCode();
 
 
@@ -2073,17 +2308,30 @@ async function syncHubSpotWithExcel(
     [];
 
 
-  let matched = 0;
-  let changed = 0;
-  let unchanged = 0;
-  let skipped = 0;
-  let notFound = 0;
-  let notOwned = 0;
-  let owned = 0;
+  let matched =
+    0;
+
+  let changed =
+    0;
+
+  let unchanged =
+    0;
+
+  let skipped =
+    0;
+
+  let notFound =
+    0;
+
+  let notOwned =
+    0;
+
+  let owned =
+    0;
 
 
   for (
-    const ticket of tickets
+    const ticket of hubSpotTickets
   ) {
 
     const bookingCode =
@@ -2102,14 +2350,20 @@ async function syncHubSpotWithExcel(
       );
 
 
+    if (!bookingCode) {
+
+      skipped++;
+
+      continue;
+
+    }
+
+
     if (
-      !bookingCode ||
-      (
-        currentStage !==
-          STAGE_OPNAMEDAG &&
-        currentStage !==
-          STAGE_PAKKET_IN_BEHANDELING
-      )
+      currentStage !==
+        STAGE_OPNAMEDAG &&
+      currentStage !==
+        STAGE_PAKKET_IN_BEHANDELING
     ) {
 
       skipped++;
@@ -2152,6 +2406,28 @@ async function syncHubSpotWithExcel(
 
       notFound++;
 
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        currentStage:
+          currentStage,
+
+        action:
+          "niet_gevonden_in_excel"
+
+      });
+
+
       continue;
 
     }
@@ -2167,12 +2443,49 @@ async function syncHubSpotWithExcel(
       );
 
 
+    if (!targetStage) {
+
+      skipped++;
+
+      continue;
+
+    }
+
+
     if (
       currentStage ===
       targetStage
     ) {
 
       unchanged++;
+
+
+      results.push({
+
+        ticketId:
+          ticket.id,
+
+        boekingscode:
+          bookingCode,
+
+        adres:
+          ticket.properties?.adres ||
+          null,
+
+        excel_status:
+          excelBooking.excel_status,
+
+        currentStage:
+          currentStage,
+
+        targetStage:
+          targetStage,
+
+        action:
+          "geen_wijziging"
+
+      });
+
 
       continue;
 
@@ -2206,6 +2519,12 @@ async function syncHubSpotWithExcel(
 
       excel_status:
         excelBooking.excel_status,
+
+      excel_sheet:
+        excelBooking.sheet,
+
+      excel_row:
+        excelBooking.row,
 
       currentStage:
         currentStage,
@@ -2253,7 +2572,7 @@ async function syncHubSpotWithExcel(
     hubspot: {
 
       ticketsWithBookingCode:
-        tickets.length,
+        hubSpotTickets.length,
 
       ownedTicketsChecked:
         contactId
@@ -2295,7 +2614,7 @@ async function syncHubSpotWithExcel(
 
 
 // ==========================================
-// MICROSOFT SHARED FILES
+// GEDEELDE MICROSOFT BESTANDEN
 // ==========================================
 
 async function getSharedFiles() {
@@ -2326,6 +2645,12 @@ async function getSharedFiles() {
 
   if (!response.ok) {
 
+    console.error(
+      "MICROSOFT SHARED FILES ERROR",
+      data
+    );
+
+
     throw new Error(
       data.error?.message ||
       "Gedeelde bestanden ophalen mislukt."
@@ -2334,8 +2659,58 @@ async function getSharedFiles() {
   }
 
 
-  return data.value ||
-    [];
+  return (
+    data.value ||
+    []
+  ).map(
+    item => {
+
+      const remoteItem =
+        item.remoteItem ||
+        {};
+
+
+      return {
+
+        name:
+          remoteItem.name ||
+          item.name ||
+          null,
+
+        itemId:
+          remoteItem.id ||
+          item.id ||
+          null,
+
+        driveId:
+          remoteItem.parentReference?.driveId ||
+          item.parentReference?.driveId ||
+          null,
+
+        path:
+          remoteItem.parentReference?.path ||
+          item.parentReference?.path ||
+          null,
+
+        webUrl:
+          remoteItem.webUrl ||
+          item.webUrl ||
+          null,
+
+        size:
+          remoteItem.size ||
+          item.size ||
+          null,
+
+        fileType:
+          remoteItem.file?.mimeType ||
+          item.file?.mimeType ||
+          null
+
+      };
+
+    }
+  );
 
 }
 
@@ -2463,7 +2838,7 @@ export default async function handler(
 
 
     // ======================================
-    // DROPBOX TAG TEST
+    // DROPBOX SNELLE TAG TEST
     // ======================================
 
     if (
@@ -2504,6 +2879,9 @@ export default async function handler(
 
           success:
             true,
+
+          method:
+            "search_v2_then_exact_tag_check",
 
           ...result
 
@@ -2597,24 +2975,74 @@ export default async function handler(
       "booking-status"
     ) {
 
+      const code =
+        req.query?.code;
+
+
+      if (!code) {
+
+        return res
+          .status(400)
+          .json({
+
+            success:
+              false,
+
+            message:
+              "Parameter code ontbreekt."
+
+          });
+
+      }
+
+
       const booking =
         await getBookingStatus(
-          req.query?.code
+          code
         );
 
 
+      if (!booking.found) {
+
+        return res
+          .status(404)
+          .json({
+
+            success:
+              false,
+
+            message:
+              "Boekingscode niet gevonden in Excel.",
+
+            boekingscode:
+              booking.boekingscode
+
+          });
+
+      }
+
+
       return res
-        .status(
-          booking.found
-            ? 200
-            : 404
-        )
+        .status(200)
         .json({
 
           success:
-            booking.found,
+            true,
 
-          ...booking
+          boekingscode:
+            booking.boekingscode,
+
+          excel_status:
+            booking.excel_status,
+
+          productiestatus:
+            booking.productiestatus,
+
+          sheet:
+            booking.sheet,
+
+          row:
+            booking.row
 
         });
 
@@ -2630,6 +3058,10 @@ export default async function handler(
       "excel-info"
     ) {
 
+      const file =
+        await getExcelFileInfo();
+
+
       return res
         .status(200)
         .json({
@@ -2638,7 +3070,7 @@ export default async function handler(
             true,
 
           file:
-            await getExcelFileInfo()
+            file
 
         });
 
@@ -2658,6 +3090,10 @@ export default async function handler(
         await downloadExcelFile();
 
 
+      const bytes =
+        result.buffer.length;
+
+
       return res
         .status(200)
         .json({
@@ -2665,11 +3101,36 @@ export default async function handler(
           success:
             true,
 
-          bytes:
-            result.buffer.length,
+          file: {
 
-          file:
-            result.fileInfo
+            name:
+              result.fileInfo.name,
+
+            driveId:
+              result.fileInfo.driveId,
+
+            itemId:
+              result.fileInfo.itemId,
+
+            mimeType:
+              result.fileInfo.mimeType,
+
+            lastModifiedDateTime:
+              result.fileInfo.lastModifiedDateTime,
+
+            bytes:
+              bytes,
+
+            megabytes:
+              Number(
+                (
+                  bytes /
+                  1024 /
+                  1024
+                ).toFixed(2)
+              )
+
+          }
 
         });
 
@@ -2677,7 +3138,7 @@ export default async function handler(
 
 
     // ======================================
-    // XLSX TEST
+    // XLSX PACKAGE TEST
     // ======================================
 
     if (
@@ -2695,6 +3156,9 @@ export default async function handler(
 
           success:
             true,
+
+          message:
+            "XLSX package is geladen.",
 
           version:
             XLSX.version ||
@@ -2747,6 +3211,26 @@ export default async function handler(
       process.env.MICROSOFT_REDIRECT_URI;
 
 
+    if (
+      !clientId ||
+      !redirectUri
+    ) {
+
+      return res
+        .status(500)
+        .json({
+
+          success:
+            false,
+
+          message:
+            "Microsoft environment variables ontbreken."
+
+        });
+
+    }
+
+
     const state =
       crypto
         .randomBytes(24)
@@ -2797,9 +3281,13 @@ export default async function handler(
       });
 
 
+    const authorizationUrl =
+      `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+
+
     return res.redirect(
       302,
-      `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`
+      authorizationUrl
     );
 
   }
