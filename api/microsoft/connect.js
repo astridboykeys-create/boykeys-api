@@ -36,6 +36,42 @@ const DROPBOX_ARCHIVE_PATH =
 
 
 // ==========================================
+// PERFORMANCE CACHE
+// ==========================================
+//
+// Deze cache versnelt herhaalde requests op
+// dezelfde warme Vercel instance. De werking
+// van de sync is er niet van afhankelijk.
+//
+// ==========================================
+
+const EXCEL_CACHE_TTL_MS =
+  60 * 1000;
+
+const TOKEN_REFRESH_MARGIN_MS =
+  60 * 1000;
+
+
+let microsoftAccessTokenCache = {
+  token: null,
+  expiresAt: 0
+};
+
+
+let dropboxAccessTokenCache = {
+  token: null,
+  expiresAt: 0
+};
+
+
+let excelBookingMapCache = {
+  value: null,
+  expiresAt: 0,
+  promise: null
+};
+
+
+// ==========================================
 // CORS
 // ==========================================
 
@@ -192,6 +228,21 @@ function getDropboxAppSettings() {
 
 async function getDropboxAccessToken() {
 
+  const now =
+    Date.now();
+
+
+  if (
+    dropboxAccessTokenCache.token &&
+    dropboxAccessTokenCache.expiresAt >
+      now + TOKEN_REFRESH_MARGIN_MS
+  ) {
+
+    return dropboxAccessTokenCache.token;
+
+  }
+
+
   const refreshToken =
     process.env.DROPBOX_REFRESH_TOKEN;
 
@@ -273,6 +324,25 @@ async function getDropboxAccessToken() {
     }
 
 
+    const expiresInSeconds =
+      Number(
+        data.expires_in
+      ) ||
+      (4 * 60 * 60);
+
+
+    dropboxAccessTokenCache = {
+
+      token:
+        data.access_token,
+
+      expiresAt:
+        Date.now() +
+        (expiresInSeconds * 1000)
+
+    };
+
+
     return data.access_token;
 
   }
@@ -283,6 +353,18 @@ async function getDropboxAccessToken() {
 
 
   if (temporaryToken) {
+
+    dropboxAccessTokenCache = {
+
+      token:
+        temporaryToken,
+
+      expiresAt:
+        Date.now() +
+        (15 * 60 * 1000)
+
+    };
+
 
     return temporaryToken;
 
@@ -1656,6 +1738,21 @@ async function handleDropboxOAuthCallback(
 
 async function getAccessToken() {
 
+  const now =
+    Date.now();
+
+
+  if (
+    microsoftAccessTokenCache.token &&
+    microsoftAccessTokenCache.expiresAt >
+      now + TOKEN_REFRESH_MARGIN_MS
+  ) {
+
+    return microsoftAccessTokenCache.token;
+
+  }
+
+
   const clientId =
     process.env.MICROSOFT_CLIENT_ID;
 
@@ -1746,6 +1843,25 @@ async function getAccessToken() {
     );
 
   }
+
+
+  const expiresInSeconds =
+    Number(
+      data.expires_in
+    ) ||
+    3600;
+
+
+  microsoftAccessTokenCache = {
+
+    token:
+      data.access_token,
+
+    expiresAt:
+      Date.now() +
+      (expiresInSeconds * 1000)
+
+  };
 
 
   return data.access_token;
@@ -1998,7 +2114,7 @@ function getCellValue(
 // EXCEL BOOKING MAP
 // ==========================================
 
-async function getExcelBookingMap() {
+async function buildExcelBookingMap() {
 
   const result =
     await downloadExcelFile();
@@ -2127,6 +2243,77 @@ async function getExcelBookingMap() {
     bookings
 
   };
+
+}
+
+
+// ==========================================
+// EXCEL BOOKING MAP - CACHE
+// ==========================================
+
+async function getExcelBookingMap() {
+
+  const now =
+    Date.now();
+
+
+  if (
+    excelBookingMapCache.value &&
+    excelBookingMapCache.expiresAt >
+      now
+  ) {
+
+    return excelBookingMapCache.value;
+
+  }
+
+
+  if (
+    excelBookingMapCache.promise
+  ) {
+
+    return excelBookingMapCache.promise;
+
+  }
+
+
+  excelBookingMapCache.promise =
+    buildExcelBookingMap()
+      .then(
+        value => {
+
+          excelBookingMapCache = {
+
+            value,
+
+            expiresAt:
+              Date.now() +
+              EXCEL_CACHE_TTL_MS,
+
+            promise:
+              null
+
+          };
+
+
+          return value;
+
+        }
+      )
+      .catch(
+        error => {
+
+          excelBookingMapCache.promise =
+            null;
+
+
+          throw error;
+
+        }
+      );
+
+
+  return excelBookingMapCache.promise;
 
 }
 
@@ -2497,12 +2684,21 @@ async function syncHubSpotWithExcel(
   contactId = null
 ) {
 
-  const excel =
-    await getExcelBookingMap();
+  const startedAt =
+    Date.now();
 
 
-  const tickets =
-    await getHubSpotTicketsWithBookingCode();
+  const [
+    excel,
+    tickets
+  ] =
+    await Promise.all([
+
+      getExcelBookingMap(),
+
+      getHubSpotTicketsWithBookingCode()
+
+    ]);
 
 
   const results =
@@ -3174,6 +3370,22 @@ async function syncHubSpotWithExcel(
       dropboxMultiple,
 
       dropboxLinkMissing
+
+    },
+
+    performance: {
+
+      durationMs:
+        Date.now() -
+        startedAt,
+
+      excelCacheTtlMs:
+        EXCEL_CACHE_TTL_MS,
+
+      ownershipMode:
+        contactId
+          ? "bestaande_per_ticket_check"
+          : "niet_van_toepassing"
 
     },
 
