@@ -60,7 +60,10 @@ export default async function handler(req, res) {
           "selected_photographer_id",
           "afspraak_start",
           "afspraak_einde",
-          "hs_pipeline_stage"
+          "hs_pipeline_stage",
+
+          "boekingscode",
+          "download_link"
         ]
       );
 
