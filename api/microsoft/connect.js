@@ -70,6 +70,227 @@ function enableCors(
 
 
 // ==========================================
+// DROPBOX ACCESS TOKEN
+// ==========================================
+
+function getDropboxAccessToken() {
+
+  const token =
+    process.env.DROPBOX_ACCESS_TOKEN;
+
+
+  if (!token) {
+
+    throw new Error(
+      "DROPBOX_ACCESS_TOKEN ontbreekt in Vercel."
+    );
+
+  }
+
+
+  return token;
+
+}
+
+
+// ==========================================
+// DROPBOX API REQUEST
+// ==========================================
+
+async function dropboxRequest(
+  endpoint,
+  body = {}
+) {
+
+  const accessToken =
+    getDropboxAccessToken();
+
+
+  const response =
+    await fetch(
+      `https://api.dropboxapi.com/2/${endpoint}`,
+      {
+
+        method:
+          "POST",
+
+        headers: {
+
+          Authorization:
+            `Bearer ${accessToken}`,
+
+          "Content-Type":
+            "application/json"
+
+        },
+
+        body:
+          JSON.stringify(
+            body
+          )
+
+      }
+    );
+
+
+  const text =
+    await response.text();
+
+
+  let data =
+    null;
+
+
+  if (text) {
+
+    try {
+
+      data =
+        JSON.parse(
+          text
+        );
+
+    }
+
+    catch {
+
+      data =
+        text;
+
+    }
+
+  }
+
+
+  if (!response.ok) {
+
+    console.error(
+      "DROPBOX API ERROR",
+      response.status,
+      data
+    );
+
+
+    throw new Error(
+      data?.error_summary ||
+      data?.error?.[".tag"] ||
+      `Dropbox API fout ${response.status}`
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+// ==========================================
+// DROPBOX ACCOUNT TESTEN
+// ==========================================
+
+async function testDropboxConnection() {
+
+  const account =
+    await dropboxRequest(
+      "users/get_current_account"
+    );
+
+
+  const root =
+    await dropboxRequest(
+      "files/list_folder",
+      {
+
+        path:
+          "",
+
+        recursive:
+          false,
+
+        include_deleted:
+          false,
+
+        include_has_explicit_shared_members:
+          false,
+
+        include_mounted_folders:
+          true,
+
+        limit:
+          100
+
+      }
+    );
+
+
+  const entries =
+    (
+      root.entries ||
+      []
+    ).map(
+      item => ({
+
+        type:
+          item[".tag"] ||
+          null,
+
+        name:
+          item.name ||
+          null,
+
+        path:
+          item.path_display ||
+          item.path_lower ||
+          null,
+
+        id:
+          item.id ||
+          null
+
+      })
+    );
+
+
+  return {
+
+    account: {
+
+      accountId:
+        account.account_id ||
+        null,
+
+      name:
+        account.name?.display_name ||
+        null,
+
+      email:
+        account.email ||
+        null
+
+    },
+
+    root: {
+
+      count:
+        entries.length,
+
+      hasMore:
+        Boolean(
+          root.has_more
+        ),
+
+      entries:
+        entries
+
+    }
+
+  };
+
+}
+
+
+// ==========================================
 // MICROSOFT ACCESS TOKEN VIA REFRESH TOKEN
 // ==========================================
 
@@ -899,9 +1120,6 @@ async function getHubSpotTicketsWithBookingCode() {
 
 // ==========================================
 // CONTROLEREN OF TICKET VAN MAKELAAR IS
-//
-// Alleen association typeId 81 telt.
-// Dus een fotograaf-associatie geeft geen toegang.
 // ==========================================
 
 async function ticketBelongsToMakelaar(
@@ -1062,18 +1280,6 @@ function determineTargetStage(
 
 // ==========================================
 // HUBSPOT / EXCEL SYNC
-//
-// dryRun = true
-//   -> alleen bekijken
-//
-// dryRun = false
-//   -> HubSpot echt wijzigen
-//
-// contactId = null
-//   -> centrale/planner sync
-//
-// contactId gevuld
-//   -> alleen tickets van die makelaar
 // ==========================================
 
 async function syncHubSpotWithExcel(
@@ -1144,10 +1350,6 @@ async function syncHubSpotWithExcel(
     }
 
 
-    // --------------------------------------
-    // Alleen productie-gerelateerde stages
-    // --------------------------------------
-
     if (
       currentStage !==
         STAGE_OPNAMEDAG &&
@@ -1161,12 +1363,6 @@ async function syncHubSpotWithExcel(
 
     }
 
-
-    // --------------------------------------
-    // Indien contact_id is opgegeven:
-    // controleren of dit ticket via
-    // Makelaar association 81 gekoppeld is.
-    // --------------------------------------
 
     if (contactId) {
 
@@ -1190,10 +1386,6 @@ async function syncHubSpotWithExcel(
 
     }
 
-
-    // --------------------------------------
-    // Boeking zoeken in Excel
-    // --------------------------------------
 
     const excelBooking =
       excel.bookings.get(
@@ -1235,10 +1427,6 @@ async function syncHubSpotWithExcel(
     matched++;
 
 
-    // --------------------------------------
-    // Doelstage bepalen
-    // --------------------------------------
-
     const targetStage =
       determineTargetStage(
         currentStage,
@@ -1254,10 +1442,6 @@ async function syncHubSpotWithExcel(
 
     }
 
-
-    // --------------------------------------
-    // Staat al goed
-    // --------------------------------------
 
     if (
       currentStage ===
@@ -1298,10 +1482,6 @@ async function syncHubSpotWithExcel(
 
     }
 
-
-    // --------------------------------------
-    // Werkelijke wijziging
-    // --------------------------------------
 
     if (!dryRun) {
 
@@ -1572,6 +1752,37 @@ export default async function handler(
     const action =
       req.query?.action ||
       "connect";
+
+
+    // ======================================
+    // DROPBOX TEST
+    // ======================================
+
+    if (
+      action ===
+      "dropbox-test"
+    ) {
+
+      const result =
+        await testDropboxConnection();
+
+
+      return res
+        .status(200)
+        .json({
+
+          success:
+            true,
+
+          message:
+            "Dropbox verbinding werkt.",
+
+          dropbox:
+            result
+
+        });
+
+    }
 
 
     // ======================================
