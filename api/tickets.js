@@ -16,6 +16,9 @@ import {
   STAGE_REVIEW,
   STAGE_APPROVED,
   STAGE_REJECTED,
+  STAGE_OPNAMEDAG,
+  STAGE_PAKKET_IN_BEHANDELING,
+  STAGE_CLOSED,
   STAGE_CANCELLED
 } from "../lib/hubspot.js";
 
@@ -1316,7 +1319,6 @@ async function validatePlannerBooking({
 
 }
 
-
 // ============================================
 // PLANNER BOEKINGENOVERZICHT
 // ============================================
@@ -1964,6 +1966,581 @@ async function getPlannerBookings() {
 
 }
 
+// ============================================
+// PLANNER AGENDA
+// ============================================
+
+function getPlannerAgendaStatus(
+  stage
+) {
+
+  const value =
+    String(
+      stage ||
+      ""
+    );
+
+
+  if (
+    value ===
+    String(
+      STAGE_REVIEW
+    )
+  ) {
+
+    return {
+
+      key:
+        "review",
+
+      label:
+        "In beoordeling"
+
+    };
+
+  }
+
+
+  if (
+    value ===
+    String(
+      STAGE_APPROVED
+    )
+  ) {
+
+    return {
+
+      key:
+        "approved",
+
+      label:
+        "Goedgekeurd"
+
+    };
+
+  }
+
+
+  if (
+    value ===
+    String(
+      STAGE_OPNAMEDAG
+    )
+  ) {
+
+    return {
+
+      key:
+        "shootday",
+
+      label:
+        "Opnamedag"
+
+    };
+
+  }
+
+
+  if (
+    value ===
+    String(
+      STAGE_PAKKET_IN_BEHANDELING
+    )
+  ) {
+
+    return {
+
+      key:
+        "processing",
+
+      label:
+        "Pakket in behandeling"
+
+    };
+
+  }
+
+
+  if (
+    value ===
+    String(
+      STAGE_CLOSED
+    )
+  ) {
+
+    return {
+
+      key:
+        "completed",
+
+      label:
+        "Afgerond"
+
+    };
+
+  }
+
+
+  return null;
+
+}
+
+
+async function searchPlannerAgendaRecords() {
+
+  const properties = [
+
+    "boekingscode",
+    "adres",
+    "diensten",
+
+    "selected_photographer_id",
+
+    "afspraak_start",
+    "afspraak_einde",
+
+    "opmerking_klant",
+
+    "woning_oppervlakte_m2",
+
+    "huiseigenaar_naam",
+    "huiseigenaar_email",
+    "huiseigenaar_telefoon",
+
+    "planner_reason",
+    "planner_note",
+    "planner_approved_at",
+
+    "hs_pipeline_stage",
+
+    "createdate"
+
+  ];
+
+
+  const results =
+    [];
+
+
+  let after =
+    null;
+
+
+  do {
+
+    const body = {
+
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName:
+                "hs_pipeline_stage",
+
+              operator:
+                "IN",
+
+              values: [
+                String(
+                  STAGE_REVIEW
+                ),
+                String(
+                  STAGE_APPROVED
+                ),
+                String(
+                  STAGE_OPNAMEDAG
+                ),
+                String(
+                  STAGE_PAKKET_IN_BEHANDELING
+                ),
+                String(
+                  STAGE_CLOSED
+                )
+              ]
+            }
+          ]
+        }
+      ],
+
+      properties,
+
+      limit:
+        100
+
+    };
+
+
+    if (
+      after
+    ) {
+
+      body.after =
+        after;
+
+    }
+
+
+    const response =
+      await hubspotRequest(
+        "/crm/v3/objects/tickets/search",
+        "POST",
+        body
+      );
+
+
+    results.push(
+      ...(
+        response.results ||
+        []
+      )
+    );
+
+
+    after =
+      response.paging
+        ?.next
+        ?.after ||
+      null;
+
+  } while (
+    after
+  );
+
+
+  return results;
+
+}
+
+
+async function getPlannerAgendaBookings() {
+
+  const records =
+    await searchPlannerAgendaRecords();
+
+
+  const bookings =
+    await Promise.all(
+
+      records.map(
+        async record => {
+
+          const properties =
+            record.properties ||
+            {};
+
+
+          const status =
+            getPlannerAgendaStatus(
+              properties
+                .hs_pipeline_stage
+            );
+
+
+          if (
+            !status
+          ) {
+
+            return null;
+
+          }
+
+
+          const appointmentStart =
+            normalizeEpoch(
+              properties
+                .afspraak_start
+            );
+
+
+          const appointmentEnd =
+            normalizeEpoch(
+              properties
+                .afspraak_einde
+            );
+
+
+          if (
+            !appointmentStart ||
+            !appointmentEnd
+          ) {
+
+            return null;
+
+          }
+
+
+          let associations = {
+
+            results:
+              []
+
+          };
+
+
+          try {
+
+            associations =
+              await getTicketAssociations(
+                record.id,
+                "contacts"
+              );
+
+          } catch (
+            error
+          ) {
+
+            console.error(
+              `Associaties voor agenda-boeking ${record.id} konden niet worden geladen:`,
+              error
+            );
+
+          }
+
+
+          const makelaarId =
+            getAssociatedContactIdByType(
+              associations,
+              ASSOCIATION_TYPE_MAKELAAR
+            );
+
+
+          const associatedPhotographerId =
+            getAssociatedContactIdByType(
+              associations,
+              ASSOCIATION_TYPE_FOTOGRAAF
+            );
+
+
+          const photographerId =
+            String(
+              properties
+                .selected_photographer_id ||
+              associatedPhotographerId ||
+              ""
+            ).trim();
+
+
+          const [
+            makelaar,
+            fotograaf
+          ] =
+            await Promise.all([
+
+              getPlannerContact(
+                makelaarId
+              ),
+
+              getPlannerContact(
+                photographerId
+              )
+
+            ]);
+
+
+          return {
+
+            id:
+              String(
+                record.id
+              ),
+
+            boekingscode:
+              properties
+                .boekingscode ||
+              "",
+
+            adres:
+              properties
+                .adres ||
+              "",
+
+            diensten:
+              normalizePlannerServices(
+                properties
+                  .diensten
+              ),
+
+            status,
+
+            afspraak_start:
+              appointmentStart,
+
+            afspraak_einde:
+              appointmentEnd,
+
+            makelaar,
+
+            fotograaf,
+
+            opmerking_klant:
+              properties
+                .opmerking_klant ||
+              "",
+
+            woning_oppervlakte_m2:
+              properties
+                .woning_oppervlakte_m2 ||
+              "",
+
+            huiseigenaar: {
+
+              naam:
+                properties
+                  .huiseigenaar_naam ||
+                "",
+
+              email:
+                properties
+                  .huiseigenaar_email ||
+                "",
+
+              telefoon:
+                properties
+                  .huiseigenaar_telefoon ||
+                ""
+
+            },
+
+            planner: {
+
+              reason:
+                properties
+                  .planner_reason ||
+                "",
+
+              note:
+                properties
+                  .planner_note ||
+                "",
+
+              approved_at:
+                normalizeEpoch(
+                  properties
+                    .planner_approved_at
+                )
+
+            },
+
+            created_at:
+              properties
+                .createdate ||
+              record.createdAt ||
+              ""
+
+          };
+
+        }
+      )
+
+    );
+
+
+  return bookings
+    .filter(Boolean)
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        a.afspraak_start -
+        b.afspraak_start
+    );
+
+}
+
+
+function getUniquePlannerAgendaContacts(
+  bookings,
+  propertyName
+) {
+
+  const map =
+    new Map();
+
+
+  for (
+    const booking of
+      bookings
+  ) {
+
+    const contact =
+      booking[
+        propertyName
+      ];
+
+
+    if (
+      !contact ||
+      !contact.id
+    ) {
+
+      continue;
+
+    }
+
+
+    if (
+      !map.has(
+        String(
+          contact.id
+        )
+      )
+    ) {
+
+      map.set(
+        String(
+          contact.id
+        ),
+        {
+          id:
+            String(
+              contact.id
+            ),
+
+          name:
+            contact.name ||
+            "",
+
+          firstname:
+            contact.firstname ||
+            "",
+
+          lastname:
+            contact.lastname ||
+            "",
+
+          email:
+            contact.email ||
+            ""
+        }
+      );
+
+    }
+
+  }
+
+
+  return Array
+    .from(
+      map.values()
+    )
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        String(
+          a.name
+        ).localeCompare(
+          String(
+            b.name
+          ),
+          "nl"
+        )
+    );
+
+}
+
 
 // ============================================
 // API HANDLER
@@ -2482,6 +3059,132 @@ export default async function handler(
             counts,
 
             bookings
+
+          });
+
+      }
+
+
+      // =======================================
+      // PLANNER AGENDA
+      // =======================================
+
+      if (
+        action ===
+        "planner-agenda"
+      ) {
+
+        if (
+          !contact_id
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "contact_id is verplicht"
+            });
+
+        }
+
+
+        const plannerContact =
+          await getContact(
+            contact_id,
+            [
+              "firstname",
+              "lastname",
+              "email",
+              "portal_role"
+            ]
+          );
+
+
+        const plannerRole =
+          String(
+            plannerContact
+              .properties
+              ?.portal_role ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        if (
+          plannerRole !==
+          "planner"
+        ) {
+
+          return res
+            .status(403)
+            .json({
+              success: false,
+              error:
+                "Geen toegang tot Planner"
+            });
+
+        }
+
+
+        const bookings =
+          await getPlannerAgendaBookings();
+
+
+        const photographers =
+          getUniquePlannerAgendaContacts(
+            bookings,
+            "fotograaf"
+          );
+
+
+        const makelaars =
+          getUniquePlannerAgendaContacts(
+            bookings,
+            "makelaar"
+          );
+
+
+        return res
+          .status(200)
+          .json({
+
+            success:
+              true,
+
+            planner: {
+
+              id:
+                String(
+                  plannerContact.id
+                ),
+
+              firstname:
+                plannerContact
+                  .properties
+                  ?.firstname ||
+                "",
+
+              lastname:
+                plannerContact
+                  .properties
+                  ?.lastname ||
+                "",
+
+              email:
+                plannerContact
+                  .properties
+                  ?.email ||
+                ""
+
+            },
+
+            bookings,
+
+            photographers,
+
+            makelaars
 
           });
 
@@ -3527,4 +4230,8 @@ export default async function handler(
 }
 
 
-  
+
+
+
+
+
