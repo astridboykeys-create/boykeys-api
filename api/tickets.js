@@ -1159,7 +1159,6 @@ async function validatePlannerBooking({
     travelFrom =
       "previous_booking";
 
-
     const earliestStart =
       new Date(
         previousBooking.end.getTime() +
@@ -1314,6 +1313,654 @@ async function validatePlannerBooking({
     }
 
   };
+
+}
+
+
+// ============================================
+// PLANNER BOEKINGENOVERZICHT
+// ============================================
+
+const ASSOCIATION_TYPE_FOTOGRAAF =
+  79;
+
+
+const ASSOCIATION_TYPE_MAKELAAR =
+  81;
+
+
+function normalizePlannerServices(
+  value
+) {
+
+  if (!value) {
+    return [];
+  }
+
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+
+    return value
+      .map(
+        item =>
+          String(
+            item
+          ).trim()
+      )
+      .filter(Boolean);
+
+  }
+
+
+  return String(
+    value
+  )
+    .split(";")
+    .map(
+      item =>
+        item.trim()
+    )
+    .filter(Boolean);
+
+}
+
+
+function getPlannerStatus(
+  stage
+) {
+
+  const value =
+    String(
+      stage ||
+      ""
+    );
+
+
+  if (
+    value ===
+    String(
+      STAGE_REVIEW
+    )
+  ) {
+
+    return {
+
+      key:
+        "review",
+
+      label:
+        "In beoordeling"
+
+    };
+
+  }
+
+
+  if (
+    value ===
+    String(
+      STAGE_APPROVED
+    )
+  ) {
+
+    return {
+
+      key:
+        "approved",
+
+      label:
+        "Goedgekeurd"
+
+    };
+
+  }
+
+
+  if (
+    value ===
+    String(
+      STAGE_REJECTED
+    )
+  ) {
+
+    return {
+
+      key:
+        "rejected",
+
+      label:
+        "Afgekeurd"
+
+    };
+
+  }
+
+
+  return null;
+
+}
+
+
+function getAssociatedContactIdByType(
+  associations,
+  associationTypeId
+) {
+
+  const results =
+    associations
+      ?.results ||
+    [];
+
+
+  for (
+    const association of
+      results
+  ) {
+
+    const types =
+      association
+        .associationTypes ||
+      [];
+
+
+    const matches =
+      types.some(
+        type =>
+          Number(
+            type.typeId
+          ) ===
+          Number(
+            associationTypeId
+          )
+      );
+
+
+    if (
+      matches
+    ) {
+
+      return String(
+        association.toObjectId
+      );
+
+    }
+
+  }
+
+
+  return null;
+
+}
+
+
+function getContactDisplayName(
+  contact
+) {
+
+  if (!contact) {
+    return "";
+  }
+
+
+  const properties =
+    contact.properties ||
+    {};
+
+
+  const fullName =
+    [
+      properties.firstname,
+      properties.lastname
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+
+  return (
+    fullName ||
+    properties.company ||
+    properties.email ||
+    ""
+  );
+
+}
+
+
+async function getPlannerContact(
+  contactId
+) {
+
+  if (!contactId) {
+    return null;
+  }
+
+
+  try {
+
+    const contact =
+      await getContact(
+        contactId,
+        [
+          "firstname",
+          "lastname",
+          "email",
+          "company",
+          "portal_role"
+        ]
+      );
+
+
+    return {
+
+      id:
+        String(
+          contact.id
+        ),
+
+      name:
+        getContactDisplayName(
+          contact
+        ),
+
+      firstname:
+        contact.properties
+          ?.firstname ||
+        "",
+
+      lastname:
+        contact.properties
+          ?.lastname ||
+        "",
+
+      email:
+        contact.properties
+          ?.email ||
+        "",
+
+      company:
+        contact.properties
+          ?.company ||
+        "",
+
+      role:
+        contact.properties
+          ?.portal_role ||
+        ""
+
+    };
+
+  } catch (
+    error
+  ) {
+
+    console.error(
+      `Contact ${contactId} kon niet worden geladen:`,
+      error
+    );
+
+
+    return null;
+
+  }
+
+}
+
+
+async function searchPlannerBookingRecords() {
+
+  const properties = [
+
+    "boekingscode",
+    "adres",
+    "diensten",
+
+    "selected_photographer_id",
+
+    "afspraak_start",
+    "afspraak_einde",
+
+    "opmerking_klant",
+
+    "woning_oppervlakte_m2",
+
+    "huiseigenaar_naam",
+    "huiseigenaar_email",
+    "huiseigenaar_telefoon",
+
+    "planner_reason",
+    "planner_note",
+    "planner_approved_at",
+
+    "hs_pipeline_stage",
+
+    "createdate"
+
+  ];
+
+
+  const results =
+    [];
+
+
+  let after =
+    null;
+
+
+  do {
+
+    const body = {
+
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName:
+                "hs_pipeline_stage",
+
+              operator:
+                "IN",
+
+              values: [
+                String(
+                  STAGE_REVIEW
+                ),
+                String(
+                  STAGE_APPROVED
+                ),
+                String(
+                  STAGE_REJECTED
+                )
+              ]
+            }
+          ]
+        }
+      ],
+
+      properties,
+
+      limit:
+        100
+
+    };
+
+
+    if (
+      after
+    ) {
+
+      body.after =
+        after;
+
+    }
+
+
+    const response =
+      await hubspotRequest(
+        "/crm/v3/objects/tickets/search",
+        "POST",
+        body
+      );
+
+
+    results.push(
+      ...(
+        response.results ||
+        []
+      )
+    );
+
+
+    after =
+      response.paging
+        ?.next
+        ?.after ||
+      null;
+
+  } while (
+    after
+  );
+
+
+  return results;
+
+}
+
+
+async function getPlannerBookings() {
+
+  const records =
+    await searchPlannerBookingRecords();
+
+
+  const bookings =
+    await Promise.all(
+
+      records.map(
+        async record => {
+
+          const properties =
+            record.properties ||
+            {};
+
+
+          const status =
+            getPlannerStatus(
+              properties
+                .hs_pipeline_stage
+            );
+
+
+          if (
+            !status
+          ) {
+
+            return null;
+
+          }
+
+
+          let associations = {
+
+            results:
+              []
+
+          };
+
+
+          try {
+
+            associations =
+              await getTicketAssociations(
+                record.id,
+                "contacts"
+              );
+
+          } catch (
+            error
+          ) {
+
+            console.error(
+              `Associaties voor boeking ${record.id} konden niet worden geladen:`,
+              error
+            );
+
+          }
+
+
+          const makelaarId =
+            getAssociatedContactIdByType(
+              associations,
+              ASSOCIATION_TYPE_MAKELAAR
+            );
+
+
+          const associatedPhotographerId =
+            getAssociatedContactIdByType(
+              associations,
+              ASSOCIATION_TYPE_FOTOGRAAF
+            );
+
+
+          const photographerId =
+            String(
+              properties
+                .selected_photographer_id ||
+              associatedPhotographerId ||
+              ""
+            ).trim();
+
+
+          const [
+            makelaar,
+            fotograaf
+          ] =
+            await Promise.all([
+
+              getPlannerContact(
+                makelaarId
+              ),
+
+              getPlannerContact(
+                photographerId
+              )
+
+            ]);
+
+
+          return {
+
+            id:
+              String(
+                record.id
+              ),
+
+            boekingscode:
+              properties
+                .boekingscode ||
+              "",
+
+            adres:
+              properties
+                .adres ||
+              "",
+
+            diensten:
+              normalizePlannerServices(
+                properties
+                  .diensten
+              ),
+
+            status,
+
+            afspraak_start:
+              normalizeEpoch(
+                properties
+                  .afspraak_start
+              ),
+
+            afspraak_einde:
+              normalizeEpoch(
+                properties
+                  .afspraak_einde
+              ),
+
+            makelaar,
+
+            fotograaf,
+
+            opmerking_klant:
+              properties
+                .opmerking_klant ||
+              "",
+
+            woning_oppervlakte_m2:
+              properties
+                .woning_oppervlakte_m2 ||
+              "",
+
+            huiseigenaar: {
+
+              naam:
+                properties
+                  .huiseigenaar_naam ||
+                "",
+
+              email:
+                properties
+                  .huiseigenaar_email ||
+                "",
+
+              telefoon:
+                properties
+                  .huiseigenaar_telefoon ||
+                ""
+
+            },
+
+            planner: {
+
+              reason:
+                properties
+                  .planner_reason ||
+                "",
+
+              note:
+                properties
+                  .planner_note ||
+                "",
+
+              approved_at:
+                normalizeEpoch(
+                  properties
+                    .planner_approved_at
+                )
+
+            },
+
+            created_at:
+              properties
+                .createdate ||
+              record.createdAt ||
+              ""
+
+          };
+
+        }
+      )
+
+    );
+
+
+  return bookings
+    .filter(Boolean)
+    .sort(
+      (
+        a,
+        b
+      ) => {
+
+        const aStart =
+          a.afspraak_start ||
+          Number.MAX_SAFE_INTEGER;
+
+
+        const bStart =
+          b.afspraak_start ||
+          Number.MAX_SAFE_INTEGER;
+
+
+        return (
+          aStart -
+          bStart
+        );
+
+      }
+    );
 
 }
 
@@ -1703,7 +2350,146 @@ export default async function handler(
 
 
       // =======================================
-      // PLANNER TICKET
+      // PLANNER BOEKINGEN
+      // =======================================
+
+      if (
+        action ===
+        "planner-bookings"
+      ) {
+
+        if (
+          !contact_id
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "contact_id is verplicht"
+            });
+
+        }
+
+
+        const plannerContact =
+          await getContact(
+            contact_id,
+            [
+              "firstname",
+              "lastname",
+              "email",
+              "portal_role"
+            ]
+          );
+
+
+        const plannerRole =
+          String(
+            plannerContact
+              .properties
+              ?.portal_role ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        if (
+          plannerRole !==
+          "planner"
+        ) {
+
+          return res
+            .status(403)
+            .json({
+              success: false,
+              error:
+                "Geen toegang tot Planner"
+            });
+
+        }
+
+
+        const bookings =
+          await getPlannerBookings();
+
+
+        const counts = {
+
+          review:
+            bookings.filter(
+              booking =>
+                booking.status
+                  ?.key ===
+                "review"
+            ).length,
+
+          approved:
+            bookings.filter(
+              booking =>
+                booking.status
+                  ?.key ===
+                "approved"
+            ).length,
+
+          rejected:
+            bookings.filter(
+              booking =>
+                booking.status
+                  ?.key ===
+                "rejected"
+            ).length
+
+        };
+
+
+        return res
+          .status(200)
+          .json({
+
+            success:
+              true,
+
+            planner: {
+
+              id:
+                String(
+                  plannerContact.id
+                ),
+
+              firstname:
+                plannerContact
+                  .properties
+                  ?.firstname ||
+                "",
+
+              lastname:
+                plannerContact
+                  .properties
+                  ?.lastname ||
+                "",
+
+              email:
+                plannerContact
+                  .properties
+                  ?.email ||
+                ""
+
+            },
+
+            counts,
+
+            bookings
+
+          });
+
+      }
+
+
+      // =======================================
+      // PLANNER BOEKING
       // =======================================
 
       if (
@@ -1775,7 +2561,7 @@ export default async function handler(
     // POST
     // =========================================
 
-    if (
+        if (
       req.method ===
       "POST"
     ) {
@@ -2739,3 +3525,6 @@ export default async function handler(
   }
 
 }
+
+
+  
