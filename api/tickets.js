@@ -1738,7 +1738,7 @@ async function loadPlannerAssociations(
 
   await mapWithConcurrency(
     records,
-    15,
+    5,
     async record => {
 
       try {
@@ -1818,7 +1818,7 @@ async function loadPlannerContacts(
 
   await mapWithConcurrency(
     uniqueIds,
-    15,
+    5,
     async contactId => {
 
       const contact =
