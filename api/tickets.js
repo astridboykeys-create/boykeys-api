@@ -35,6 +35,10 @@ import {
   getTravelInfo
 } from "../lib/googleRoutes.js";
 
+import {
+  previewSimplyBookImport
+} from "../lib/simplybookImport.js";
+
 
 // ============================================
 // HELPERS
@@ -1319,6 +1323,7 @@ async function validatePlannerBooking({
 
 }
 
+
 // ============================================
 // PLANNER BOEKINGENOVERZICHT
 // ============================================
@@ -1390,13 +1395,11 @@ function getPlannerStatus(
   ) {
 
     return {
-
       key:
         "review",
 
       label:
         "In beoordeling"
-
     };
 
   }
@@ -1410,13 +1413,11 @@ function getPlannerStatus(
   ) {
 
     return {
-
       key:
         "approved",
 
       label:
         "Goedgekeurd"
-
     };
 
   }
@@ -1430,13 +1431,11 @@ function getPlannerStatus(
   ) {
 
     return {
-
       key:
         "rejected",
 
       label:
         "Afgekeurd"
-
     };
 
   }
@@ -1616,32 +1615,22 @@ async function getPlannerContact(
 async function searchPlannerBookingRecords() {
 
   const properties = [
-
     "boekingscode",
     "adres",
     "diensten",
-
     "selected_photographer_id",
-
     "afspraak_start",
     "afspraak_einde",
-
     "opmerking_klant",
-
     "woning_oppervlakte_m2",
-
     "huiseigenaar_naam",
     "huiseigenaar_email",
     "huiseigenaar_telefoon",
-
     "planner_reason",
     "planner_note",
     "planner_approved_at",
-
     "hs_pipeline_stage",
-
     "createdate"
-
   ];
 
 
@@ -1767,10 +1756,8 @@ async function getPlannerBookings() {
 
 
           let associations = {
-
             results:
               []
-
           };
 
 
@@ -1966,6 +1953,7 @@ async function getPlannerBookings() {
 
 }
 
+
 // ============================================
 // PLANNER AGENDA
 // ============================================
@@ -1989,13 +1977,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "review",
 
       label:
         "In beoordeling"
-
     };
 
   }
@@ -2009,13 +1995,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "approved",
 
       label:
         "Goedgekeurd"
-
     };
 
   }
@@ -2029,13 +2013,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "shootday",
 
       label:
         "Opnamedag"
-
     };
 
   }
@@ -2049,13 +2031,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "processing",
 
       label:
         "Pakket in behandeling"
-
     };
 
   }
@@ -2069,13 +2049,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "completed",
 
       label:
         "Afgerond"
-
     };
 
   }
@@ -2089,32 +2067,22 @@ function getPlannerAgendaStatus(
 async function searchPlannerAgendaRecords() {
 
   const properties = [
-
     "boekingscode",
     "adres",
     "diensten",
-
     "selected_photographer_id",
-
     "afspraak_start",
     "afspraak_einde",
-
     "opmerking_klant",
-
     "woning_oppervlakte_m2",
-
     "huiseigenaar_naam",
     "huiseigenaar_email",
     "huiseigenaar_telefoon",
-
     "planner_reason",
     "planner_note",
     "planner_approved_at",
-
     "hs_pipeline_stage",
-
     "createdate"
-
   ];
 
 
@@ -2270,10 +2238,8 @@ async function getPlannerAgendaBookings() {
 
 
           let associations = {
-
             results:
               []
-
           };
 
 
@@ -3264,7 +3230,7 @@ export default async function handler(
     // POST
     // =========================================
 
-        if (
+    if (
       req.method ===
       "POST"
     ) {
@@ -3297,6 +3263,154 @@ export default async function handler(
       } =
         req.body ||
         {};
+
+
+      // =======================================
+      // SIMPLYBOOK IMPORT PREVIEW
+      // =======================================
+
+      if (
+        action ===
+        "planner-import-preview"
+      ) {
+
+        if (
+          !contact_id
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "contact_id is verplicht"
+            });
+
+        }
+
+
+        const plannerContact =
+          await getContact(
+            contact_id,
+            [
+              "firstname",
+              "lastname",
+              "email",
+              "portal_role"
+            ]
+          );
+
+
+        const plannerRole =
+          String(
+            plannerContact
+              .properties
+              ?.portal_role ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        if (
+          plannerRole !==
+          "planner"
+        ) {
+
+          return res
+            .status(403)
+            .json({
+              success: false,
+              error:
+                "Geen toegang tot Planner"
+            });
+
+        }
+
+
+        const rows =
+          Array.isArray(
+            req.body?.rows
+          )
+            ? req.body.rows
+            : [];
+
+
+        if (
+          !rows.length
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "Geen importregels ontvangen"
+            });
+
+        }
+
+
+        if (
+          rows.length > 1000
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              error:
+                "Maximaal 1000 boekingen per import"
+            });
+
+        }
+
+
+        const preview =
+          await previewSimplyBookImport(
+            rows
+          );
+
+
+        return res
+          .status(200)
+          .json({
+
+            success:
+              true,
+
+            planner: {
+
+              id:
+                String(
+                  plannerContact.id
+                ),
+
+              firstname:
+                plannerContact
+                  .properties
+                  ?.firstname ||
+                "",
+
+              lastname:
+                plannerContact
+                  .properties
+                  ?.lastname ||
+                "",
+
+              email:
+                plannerContact
+                  .properties
+                  ?.email ||
+                ""
+
+            },
+
+            ...preview
+
+          });
+
+      }
 
 
       // =======================================
@@ -3966,7 +4080,7 @@ export default async function handler(
 
 
       // =======================================
-      // MAKELAAR TICKET-ACTIES
+      // MAKELAAR BOEKING-ACTIES
       // =======================================
 
       if (
@@ -4228,10 +4342,3 @@ export default async function handler(
   }
 
 }
-
-
-
-
-
-
-
