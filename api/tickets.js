@@ -3723,16 +3723,8 @@ export default async function handler(
       }
 
 
-      // =======================================
-      // PLANNER BOEKING
-      //
-      // TIJDELIJKE DEBUG:
-      // naast de boeking sturen we ook
-      // exact de ruwe HubSpot associations
-      // terug.
-      //
-      // Daarmee zien we exact hoe HubSpot
-      // type 79 / 81 teruggeeft.
+           // =======================================
+      // PLANNER BOEKING - TIJDELIJKE DEBUG
       // =======================================
 
       if (
@@ -3800,6 +3792,46 @@ export default async function handler(
           ]);
 
 
+        const makelaarId =
+          getAssociatedContactIdByType(
+            associations,
+            ASSOCIATION_TYPE_MAKELAAR
+          );
+
+
+        const associatedPhotographerId =
+          getAssociatedContactIdByType(
+            associations,
+            ASSOCIATION_TYPE_FOTOGRAAF
+          );
+
+
+        const photographerId =
+          String(
+            ticket.properties
+              ?.selected_photographer_id ||
+            associatedPhotographerId ||
+            ""
+          ).trim();
+
+
+        const [
+          makelaar,
+          fotograaf
+        ] =
+          await Promise.all([
+
+            getPlannerContact(
+              makelaarId
+            ),
+
+            getPlannerContact(
+              photographerId
+            )
+
+          ]);
+
+
         return res
           .status(200)
           .json({
@@ -3809,8 +3841,39 @@ export default async function handler(
 
             ticket,
 
-            association_debug:
-              associations
+            association_debug: {
+
+              raw:
+                associations,
+
+              ids: {
+
+                makelaar:
+                  makelaarId,
+
+                fotograaf_association:
+                  associatedPhotographerId,
+
+                fotograaf_selected:
+                  ticket.properties
+                    ?.selected_photographer_id ||
+                  null,
+
+                fotograaf_used:
+                  photographerId ||
+                  null
+
+              },
+
+              contacts: {
+
+                makelaar,
+
+                fotograaf
+
+              }
+
+            }
 
           });
 
