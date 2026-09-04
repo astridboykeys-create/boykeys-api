@@ -1167,6 +1167,7 @@ async function validatePlannerBooking({
     travelFrom =
       "previous_booking";
 
+
     const earliestStart =
       new Date(
         previousBooking.end.getTime() +
@@ -1635,14 +1636,10 @@ async function getPlannerContact(
 // ============================================
 // CONCURRENTIE HELPER
 //
-// We gebruiken bewust alleen de bestaande,
-// bewezen HubSpot endpoints.
+// We blijven bij de bestaande bewezen
+// HubSpot endpoints.
 //
-// Dus GEEN batch association endpoint.
-// Dat voorkomt de 415 Unsupported Media Type.
-//
-// Wel laden we meerdere requests tegelijk,
-// met een veilige limiet.
+// Geen batch-association endpoint.
 // ============================================
 
 async function mapWithConcurrency(
@@ -2420,10 +2417,98 @@ function getPlannerAgendaStatus(
 
 
 // ============================================
-// PLANNER AGENDA RECORDS
+// AGENDA DATUMBEREIK
 // ============================================
 
-async function searchPlannerAgendaRecords() {
+function normalizeAgendaRange(
+  rangeStart,
+  rangeEnd
+) {
+
+  const startMs =
+    normalizeEpoch(
+      rangeStart
+    );
+
+
+  const endMs =
+    normalizeEpoch(
+      rangeEnd
+    );
+
+
+  if (
+    !startMs &&
+    !endMs
+  ) {
+
+    return {
+      startMs:
+        null,
+
+      endMs:
+        null
+    };
+
+  }
+
+
+  if (
+    !startMs ||
+    !endMs
+  ) {
+
+    throw new Error(
+      "Voor de agenda zijn zowel range_start als range_end verplicht."
+    );
+
+  }
+
+
+  if (
+    endMs <=
+    startMs
+  ) {
+
+    throw new Error(
+      "Agenda range_end moet na range_start liggen."
+    );
+
+  }
+
+
+  return {
+    startMs,
+    endMs
+  };
+
+}
+
+
+// ============================================
+// PLANNER AGENDA RECORDS
+//
+// Als range_start/range_end worden meegestuurd,
+// filtert HubSpot al vóórdat wij associations
+// en contacten gaan laden.
+//
+// Dit is de belangrijkste snelheidswinst.
+// ============================================
+
+async function searchPlannerAgendaRecords(
+  rangeStart = null,
+  rangeEnd = null
+) {
+
+  const {
+    startMs,
+    endMs
+  } =
+    normalizeAgendaRange(
+      rangeStart,
+      rangeEnd
+    );
+
 
   const properties = [
 
@@ -2455,6 +2540,81 @@ async function searchPlannerAgendaRecords() {
   ];
 
 
+  const filters = [
+
+    {
+      propertyName:
+        "hs_pipeline_stage",
+
+      operator:
+        "IN",
+
+      values: [
+        String(
+          STAGE_REVIEW
+        ),
+        String(
+          STAGE_APPROVED
+        ),
+        String(
+          STAGE_OPNAMEDAG
+        ),
+        String(
+          STAGE_PAKKET_IN_BEHANDELING
+        ),
+        String(
+          STAGE_CLOSED
+        )
+      ]
+    }
+
+  ];
+
+
+  if (
+    startMs
+  ) {
+
+    filters.push(
+      {
+        propertyName:
+          "afspraak_start",
+
+        operator:
+          "GTE",
+
+        value:
+          String(
+            startMs
+          )
+      }
+    );
+
+  }
+
+
+  if (
+    endMs
+  ) {
+
+    filters.push(
+      {
+        propertyName:
+          "afspraak_start",
+
+        operator:
+          "LT",
+
+        value:
+          String(
+            endMs
+          )
+      }
+    );
+
+  }
+
+
   const results =
     [];
 
@@ -2469,37 +2629,15 @@ async function searchPlannerAgendaRecords() {
 
       filterGroups: [
         {
-          filters: [
-            {
-              propertyName:
-                "hs_pipeline_stage",
-
-              operator:
-                "IN",
-
-              values: [
-                String(
-                  STAGE_REVIEW
-                ),
-                String(
-                  STAGE_APPROVED
-                ),
-                String(
-                  STAGE_OPNAMEDAG
-                ),
-                String(
-                  STAGE_PAKKET_IN_BEHANDELING
-                ),
-                String(
-                  STAGE_CLOSED
-                )
-              ]
-            }
-          ]
+          filters
         }
       ],
 
       properties,
+
+      sorts: [
+        "afspraak_start"
+      ],
 
       limit:
         100
@@ -2553,10 +2691,16 @@ async function searchPlannerAgendaRecords() {
 // PLANNER AGENDA BOEKINGEN
 // ============================================
 
-async function getPlannerAgendaBookings() {
+async function getPlannerAgendaBookings(
+  rangeStart = null,
+  rangeEnd = null
+) {
 
   const records =
-    await searchPlannerAgendaRecords();
+    await searchPlannerAgendaRecords(
+      rangeStart,
+      rangeEnd
+    );
 
 
   const validRecords =
@@ -2905,7 +3049,6 @@ function getUniquePlannerAgendaContacts(
 
 }
 
-
 // ============================================
 // API HANDLER
 // ============================================
@@ -2941,7 +3084,11 @@ export default async function handler(
         photographer_id,
         contact_id,
         ticket_id,
-        email
+        email,
+
+        // Agenda datumrange
+        range_start,
+        range_end
       } =
         req.query;
 
@@ -3431,6 +3578,12 @@ export default async function handler(
 
       // =======================================
       // PLANNER AGENDA
+      //
+      // range_start / range_end zijn optioneel.
+      //
+      // Zodra frontend deze meestuurt,
+      // filteren we in HubSpot vóórdat we
+      // associations/contacten laden.
       // =======================================
 
       if (
@@ -3493,7 +3646,10 @@ export default async function handler(
 
 
         const bookings =
-          await getPlannerAgendaBookings();
+          await getPlannerAgendaBookings(
+            range_start || null,
+            range_end || null
+          );
 
 
         const photographers =
@@ -3544,6 +3700,18 @@ export default async function handler(
 
             },
 
+            range: {
+
+              start:
+                range_start ||
+                null,
+
+              end:
+                range_end ||
+                null
+
+            },
+
             bookings,
 
             photographers,
@@ -3557,6 +3725,14 @@ export default async function handler(
 
       // =======================================
       // PLANNER BOEKING
+      //
+      // TIJDELIJKE DEBUG:
+      // naast de boeking sturen we ook
+      // exact de ruwe HubSpot associations
+      // terug.
+      //
+      // Daarmee zien we exact hoe HubSpot
+      // type 79 / 81 teruggeeft.
       // =======================================
 
       if (
@@ -3579,35 +3755,63 @@ export default async function handler(
         }
 
 
-        const ticket =
-          await getTicket(
-            ticket_id,
-            [
-              "adres",
-              "diensten",
-              "selected_photographer_id",
-              "afspraak_start",
-              "afspraak_einde",
-              "opmerking_klant",
+        const [
+          ticket,
+          associations
+        ] =
+          await Promise.all([
 
-              "woning_oppervlakte_m2",
-              "huiseigenaar_naam",
-              "huiseigenaar_email",
-              "huiseigenaar_telefoon",
+            getTicket(
+              ticket_id,
+              [
+                "boekingscode",
+                "adres",
+                "diensten",
 
-              "planner_reason",
-              "planner_note",
-              "planner_approved_at",
-              "hs_pipeline_stage"
-            ]
-          );
+                "selected_photographer_id",
+
+                "afspraak_start",
+                "afspraak_einde",
+
+                "opmerking_klant",
+
+                "woning_oppervlakte_m2",
+
+                "huiseigenaar_naam",
+                "huiseigenaar_email",
+                "huiseigenaar_telefoon",
+
+                "planner_reason",
+                "planner_note",
+                "planner_approved_at",
+
+                "hs_pipeline_stage",
+
+                "extra_opdracht",
+                "extra_opdracht_facturatie"
+              ]
+            ),
+
+            getTicketAssociations(
+              ticket_id,
+              "contacts"
+            )
+
+          ]);
 
 
         return res
           .status(200)
           .json({
-            success: true,
-            ticket
+
+            success:
+              true,
+
+            ticket,
+
+            association_debug:
+              associations
+
           });
 
       }
