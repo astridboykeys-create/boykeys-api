@@ -1458,8 +1458,7 @@ function getAssociatedContactIdByType(
 ) {
 
   const results =
-    associations
-      ?.results ||
+    associations?.results ||
     [];
 
 
@@ -1469,8 +1468,8 @@ function getAssociatedContactIdByType(
   ) {
 
     const types =
-      association
-        .associationTypes ||
+      association.associationTypes ||
+      association.types ||
       [];
 
 
@@ -1490,9 +1489,21 @@ function getAssociatedContactIdByType(
       matches
     ) {
 
-      return String(
-        association.toObjectId
-      );
+      const contactId =
+        association.toObjectId ||
+        association.id ||
+        null;
+
+
+      if (
+        contactId
+      ) {
+
+        return String(
+          contactId
+        );
+
+      }
 
     }
 
