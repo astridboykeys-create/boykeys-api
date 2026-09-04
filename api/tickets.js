@@ -1324,6 +1324,7 @@ async function validatePlannerBooking({
 
 }
 
+
 // ============================================
 // PLANNER BOEKINGENOVERZICHT
 // ============================================
@@ -1459,6 +1460,7 @@ function getAssociatedContactIdByType(
 
   const results =
     associations?.results ||
+    associations?.to ||
     [];
 
 
@@ -1486,24 +1488,26 @@ function getAssociatedContactIdByType(
 
 
     if (
-      matches
+      !matches
+    ) {
+      continue;
+    }
+
+
+    const contactId =
+      association.toObjectId ||
+      association.id ||
+      association.to?.id ||
+      null;
+
+
+    if (
+      contactId
     ) {
 
-      const contactId =
-        association.toObjectId ||
-        association.id ||
-        null;
-
-
-      if (
+      return String(
         contactId
-      ) {
-
-        return String(
-          contactId
-        );
-
-      }
+      );
 
     }
 
@@ -1617,7 +1621,7 @@ async function getPlannerContact(
   ) {
 
     console.error(
-      `Contact ${contactId} kon niet worden geladen:`,
+      `Planner contact ${contactId} kon niet worden geladen:`,
       error
     );
 
@@ -1628,6 +1632,333 @@ async function getPlannerContact(
 
 }
 
+// ============================================
+// CONCURRENTIE HELPER
+//
+// We gebruiken bewust alleen de bestaande,
+// bewezen HubSpot endpoints.
+//
+// Dus GEEN batch association endpoint.
+// Dat voorkomt de 415 Unsupported Media Type.
+//
+// Wel laden we meerdere requests tegelijk,
+// met een veilige limiet.
+// ============================================
+
+async function mapWithConcurrency(
+  items,
+  limit,
+  worker
+) {
+
+  const results =
+    new Array(
+      items.length
+    );
+
+
+  let nextIndex =
+    0;
+
+
+  async function runner() {
+
+    while (
+      true
+    ) {
+
+      const currentIndex =
+        nextIndex;
+
+
+      nextIndex +=
+        1;
+
+
+      if (
+        currentIndex >=
+        items.length
+      ) {
+        return;
+      }
+
+
+      results[
+        currentIndex
+      ] =
+        await worker(
+          items[
+            currentIndex
+          ],
+          currentIndex
+        );
+
+    }
+
+  }
+
+
+  const runnerCount =
+    Math.min(
+      Math.max(
+        Number(
+          limit
+        ) || 1,
+        1
+      ),
+      items.length
+    );
+
+
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          runnerCount
+      },
+      () =>
+        runner()
+    )
+  );
+
+
+  return results;
+
+}
+
+
+// ============================================
+// ASSOCIATIES GELIJKTIJDIG LADEN
+// ============================================
+
+async function loadPlannerAssociations(
+  records
+) {
+
+  const associationsByTicket =
+    new Map();
+
+
+  await mapWithConcurrency(
+    records,
+    15,
+    async record => {
+
+      try {
+
+        const associations =
+          await getTicketAssociations(
+            record.id,
+            "contacts"
+          );
+
+
+        associationsByTicket.set(
+          String(
+            record.id
+          ),
+          associations
+        );
+
+      } catch (
+        error
+      ) {
+
+        console.error(
+          `Associaties voor boeking ${record.id} konden niet worden geladen:`,
+          error
+        );
+
+
+        associationsByTicket.set(
+          String(
+            record.id
+          ),
+          {
+            results:
+              []
+          }
+        );
+
+      }
+
+    }
+  );
+
+
+  return associationsByTicket;
+
+}
+
+
+// ============================================
+// CONTACTEN ÉÉN KEER LADEN
+// ============================================
+
+async function loadPlannerContacts(
+  contactIds
+) {
+
+  const contactsById =
+    new Map();
+
+
+  const uniqueIds =
+    [
+      ...new Set(
+        (contactIds || [])
+          .map(
+            id =>
+              String(
+                id ||
+                ""
+              ).trim()
+          )
+          .filter(Boolean)
+      )
+    ];
+
+
+  await mapWithConcurrency(
+    uniqueIds,
+    15,
+    async contactId => {
+
+      const contact =
+        await getPlannerContact(
+          contactId
+        );
+
+
+      if (
+        contact?.id
+      ) {
+
+        contactsById.set(
+          String(
+            contact.id
+          ),
+          contact
+        );
+
+      }
+
+    }
+  );
+
+
+  return contactsById;
+
+}
+
+
+// ============================================
+// RECORDS VERRIJKEN
+// ============================================
+
+async function enrichPlannerRecords(
+  records
+) {
+
+  const associationsByTicket =
+    await loadPlannerAssociations(
+      records
+    );
+
+
+  const contactIds =
+    new Set();
+
+
+  for (
+    const record of
+      records
+  ) {
+
+    const properties =
+      record.properties ||
+      {};
+
+
+    const associations =
+      associationsByTicket.get(
+        String(
+          record.id
+        )
+      ) || {
+        results:
+          []
+      };
+
+
+    const makelaarId =
+      getAssociatedContactIdByType(
+        associations,
+        ASSOCIATION_TYPE_MAKELAAR
+      );
+
+
+    const associatedPhotographerId =
+      getAssociatedContactIdByType(
+        associations,
+        ASSOCIATION_TYPE_FOTOGRAAF
+      );
+
+
+    const photographerId =
+      String(
+        properties
+          .selected_photographer_id ||
+        associatedPhotographerId ||
+        ""
+      ).trim();
+
+
+    if (
+      makelaarId
+    ) {
+
+      contactIds.add(
+        String(
+          makelaarId
+        )
+      );
+
+    }
+
+
+    if (
+      photographerId
+    ) {
+
+      contactIds.add(
+        photographerId
+      );
+
+    }
+
+  }
+
+
+  const contactsById =
+    await loadPlannerContacts(
+      [
+        ...contactIds
+      ]
+    );
+
+
+  return {
+    associationsByTicket,
+    contactsById
+  };
+
+}
+
+
+// ============================================
+// PLANNER DASHBOARD RECORDS
+// ============================================
 
 async function searchPlannerBookingRecords() {
 
@@ -1749,208 +2080,203 @@ async function searchPlannerBookingRecords() {
 }
 
 
+// ============================================
+// PLANNER DASHBOARD BOEKINGEN
+// ============================================
+
 async function getPlannerBookings() {
 
   const records =
     await searchPlannerBookingRecords();
 
 
+  const {
+    associationsByTicket,
+    contactsById
+  } =
+    await enrichPlannerRecords(
+      records
+    );
+
+
   const bookings =
-    await Promise.all(
+    records.map(
+      record => {
 
-      records.map(
-        async record => {
-
-          const properties =
-            record.properties ||
-            {};
+        const properties =
+          record.properties ||
+          {};
 
 
-          const status =
-            getPlannerStatus(
-              properties
-                .hs_pipeline_stage
-            );
+        const status =
+          getPlannerStatus(
+            properties
+              .hs_pipeline_stage
+          );
 
 
-          if (
-            !status
-          ) {
+        if (
+          !status
+        ) {
 
-            return null;
-
-          }
-
-
-          let associations = {
-
-            results:
-              []
-
-          };
-
-
-          try {
-
-            associations =
-              await getTicketAssociations(
-                record.id,
-                "contacts"
-              );
-
-          } catch (
-            error
-          ) {
-
-            console.error(
-              `Associaties voor boeking ${record.id} konden niet worden geladen:`,
-              error
-            );
-
-          }
-
-
-          const makelaarId =
-            getAssociatedContactIdByType(
-              associations,
-              ASSOCIATION_TYPE_MAKELAAR
-            );
-
-
-          const associatedPhotographerId =
-            getAssociatedContactIdByType(
-              associations,
-              ASSOCIATION_TYPE_FOTOGRAAF
-            );
-
-
-          const photographerId =
-            String(
-              properties
-                .selected_photographer_id ||
-              associatedPhotographerId ||
-              ""
-            ).trim();
-
-
-          const [
-            makelaar,
-            fotograaf
-          ] =
-            await Promise.all([
-
-              getPlannerContact(
-                makelaarId
-              ),
-
-              getPlannerContact(
-                photographerId
-              )
-
-            ]);
-
-
-          return {
-
-            id:
-              String(
-                record.id
-              ),
-
-            boekingscode:
-              properties
-                .boekingscode ||
-              "",
-
-            adres:
-              properties
-                .adres ||
-              "",
-
-            diensten:
-              normalizePlannerServices(
-                properties
-                  .diensten
-              ),
-
-            status,
-
-            afspraak_start:
-              normalizeEpoch(
-                properties
-                  .afspraak_start
-              ),
-
-            afspraak_einde:
-              normalizeEpoch(
-                properties
-                  .afspraak_einde
-              ),
-
-            makelaar,
-
-            fotograaf,
-
-            opmerking_klant:
-              properties
-                .opmerking_klant ||
-              "",
-
-            woning_oppervlakte_m2:
-              properties
-                .woning_oppervlakte_m2 ||
-              "",
-
-            huiseigenaar: {
-
-              naam:
-                properties
-                  .huiseigenaar_naam ||
-                "",
-
-              email:
-                properties
-                  .huiseigenaar_email ||
-                "",
-
-              telefoon:
-                properties
-                  .huiseigenaar_telefoon ||
-                ""
-
-            },
-
-            planner: {
-
-              reason:
-                properties
-                  .planner_reason ||
-                "",
-
-              note:
-                properties
-                  .planner_note ||
-                "",
-
-              approved_at:
-                normalizeEpoch(
-                  properties
-                    .planner_approved_at
-                )
-
-            },
-
-            created_at:
-              properties
-                .createdate ||
-              record.createdAt ||
-              ""
-
-          };
+          return null;
 
         }
-      )
 
+
+        const associations =
+          associationsByTicket.get(
+            String(
+              record.id
+            )
+          ) || {
+            results:
+              []
+          };
+
+
+        const makelaarId =
+          getAssociatedContactIdByType(
+            associations,
+            ASSOCIATION_TYPE_MAKELAAR
+          );
+
+
+        const associatedPhotographerId =
+          getAssociatedContactIdByType(
+            associations,
+            ASSOCIATION_TYPE_FOTOGRAAF
+          );
+
+
+        const photographerId =
+          String(
+            properties
+              .selected_photographer_id ||
+            associatedPhotographerId ||
+            ""
+          ).trim();
+
+
+        const makelaar =
+          makelaarId
+            ? contactsById.get(
+                String(
+                  makelaarId
+                )
+              ) ||
+              null
+            : null;
+
+
+        const fotograaf =
+          photographerId
+            ? contactsById.get(
+                photographerId
+              ) ||
+              null
+            : null;
+
+
+        return {
+
+          id:
+            String(
+              record.id
+            ),
+
+          boekingscode:
+            properties
+              .boekingscode ||
+            "",
+
+          adres:
+            properties
+              .adres ||
+            "",
+
+          diensten:
+            normalizePlannerServices(
+              properties
+                .diensten
+            ),
+
+          status,
+
+          afspraak_start:
+            normalizeEpoch(
+              properties
+                .afspraak_start
+            ),
+
+          afspraak_einde:
+            normalizeEpoch(
+              properties
+                .afspraak_einde
+            ),
+
+          makelaar,
+
+          fotograaf,
+
+          opmerking_klant:
+            properties
+              .opmerking_klant ||
+            "",
+
+          woning_oppervlakte_m2:
+            properties
+              .woning_oppervlakte_m2 ||
+            "",
+
+          huiseigenaar: {
+
+            naam:
+              properties
+                .huiseigenaar_naam ||
+              "",
+
+            email:
+              properties
+                .huiseigenaar_email ||
+              "",
+
+            telefoon:
+              properties
+                .huiseigenaar_telefoon ||
+              ""
+
+          },
+
+          planner: {
+
+            reason:
+              properties
+                .planner_reason ||
+              "",
+
+            note:
+              properties
+                .planner_note ||
+              "",
+
+            approved_at:
+              normalizeEpoch(
+                properties
+                  .planner_approved_at
+              )
+
+          },
+
+          created_at:
+            properties
+              .createdate ||
+            record.createdAt ||
+            ""
+
+        };
+
+      }
     );
 
 
@@ -1982,8 +2308,9 @@ async function getPlannerBookings() {
 
 }
 
+
 // ============================================
-// PLANNER AGENDA
+// PLANNER AGENDA STATUS
 // ============================================
 
 function getPlannerAgendaStatus(
@@ -2005,13 +2332,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "review",
 
       label:
         "In beoordeling"
-
     };
 
   }
@@ -2025,13 +2350,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "approved",
 
       label:
         "Goedgekeurd"
-
     };
 
   }
@@ -2045,13 +2368,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "shootday",
 
       label:
         "Opnamedag"
-
     };
 
   }
@@ -2065,13 +2386,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "processing",
 
       label:
         "Pakket in behandeling"
-
     };
 
   }
@@ -2085,13 +2404,11 @@ function getPlannerAgendaStatus(
   ) {
 
     return {
-
       key:
         "completed",
 
       label:
         "Afgerond"
-
     };
 
   }
@@ -2101,6 +2418,10 @@ function getPlannerAgendaStatus(
 
 }
 
+
+// ============================================
+// PLANNER AGENDA RECORDS
+// ============================================
 
 async function searchPlannerAgendaRecords() {
 
@@ -2228,231 +2549,254 @@ async function searchPlannerAgendaRecords() {
 }
 
 
+// ============================================
+// PLANNER AGENDA BOEKINGEN
+// ============================================
+
 async function getPlannerAgendaBookings() {
 
   const records =
     await searchPlannerAgendaRecords();
 
 
-  const bookings =
-    await Promise.all(
+  const validRecords =
+    records.filter(
+      record => {
 
-      records.map(
-        async record => {
-
-          const properties =
-            record.properties ||
-            {};
+        const properties =
+          record.properties ||
+          {};
 
 
-          const status =
-            getPlannerAgendaStatus(
-              properties
-                .hs_pipeline_stage
-            );
+        const status =
+          getPlannerAgendaStatus(
+            properties
+              .hs_pipeline_stage
+          );
 
 
-          if (
-            !status
-          ) {
+        if (
+          !status
+        ) {
 
-            return null;
-
-          }
-
-
-          const appointmentStart =
-            normalizeEpoch(
-              properties
-                .afspraak_start
-            );
-
-
-          const appointmentEnd =
-            normalizeEpoch(
-              properties
-                .afspraak_einde
-            );
-
-
-          if (
-            !appointmentStart ||
-            !appointmentEnd
-          ) {
-
-            return null;
-
-          }
-
-
-          let associations = {
-
-            results:
-              []
-
-          };
-
-
-          try {
-
-            associations =
-              await getTicketAssociations(
-                record.id,
-                "contacts"
-              );
-
-          } catch (
-            error
-          ) {
-
-            console.error(
-              `Associaties voor agenda-boeking ${record.id} konden niet worden geladen:`,
-              error
-            );
-
-          }
-
-
-          const makelaarId =
-            getAssociatedContactIdByType(
-              associations,
-              ASSOCIATION_TYPE_MAKELAAR
-            );
-
-
-          const associatedPhotographerId =
-            getAssociatedContactIdByType(
-              associations,
-              ASSOCIATION_TYPE_FOTOGRAAF
-            );
-
-
-          const photographerId =
-            String(
-              properties
-                .selected_photographer_id ||
-              associatedPhotographerId ||
-              ""
-            ).trim();
-
-
-          const [
-            makelaar,
-            fotograaf
-          ] =
-            await Promise.all([
-
-              getPlannerContact(
-                makelaarId
-              ),
-
-              getPlannerContact(
-                photographerId
-              )
-
-            ]);
-
-
-          return {
-
-            id:
-              String(
-                record.id
-              ),
-
-            boekingscode:
-              properties
-                .boekingscode ||
-              "",
-
-            adres:
-              properties
-                .adres ||
-              "",
-
-            diensten:
-              normalizePlannerServices(
-                properties
-                  .diensten
-              ),
-
-            status,
-
-            afspraak_start:
-              appointmentStart,
-
-            afspraak_einde:
-              appointmentEnd,
-
-            makelaar,
-
-            fotograaf,
-
-            opmerking_klant:
-              properties
-                .opmerking_klant ||
-              "",
-
-            woning_oppervlakte_m2:
-              properties
-                .woning_oppervlakte_m2 ||
-              "",
-
-            huiseigenaar: {
-
-              naam:
-                properties
-                  .huiseigenaar_naam ||
-                "",
-
-              email:
-                properties
-                  .huiseigenaar_email ||
-                "",
-
-              telefoon:
-                properties
-                  .huiseigenaar_telefoon ||
-                ""
-
-            },
-
-            planner: {
-
-              reason:
-                properties
-                  .planner_reason ||
-                "",
-
-              note:
-                properties
-                  .planner_note ||
-                "",
-
-              approved_at:
-                normalizeEpoch(
-                  properties
-                    .planner_approved_at
-                )
-
-            },
-
-            created_at:
-              properties
-                .createdate ||
-              record.createdAt ||
-              ""
-
-          };
+          return false;
 
         }
-      )
 
+
+        const appointmentStart =
+          normalizeEpoch(
+            properties
+              .afspraak_start
+          );
+
+
+        const appointmentEnd =
+          normalizeEpoch(
+            properties
+              .afspraak_einde
+          );
+
+
+        return Boolean(
+          appointmentStart &&
+          appointmentEnd
+        );
+
+      }
+    );
+
+
+  const {
+    associationsByTicket,
+    contactsById
+  } =
+    await enrichPlannerRecords(
+      validRecords
+    );
+
+
+  const bookings =
+    validRecords.map(
+      record => {
+
+        const properties =
+          record.properties ||
+          {};
+
+
+        const status =
+          getPlannerAgendaStatus(
+            properties
+              .hs_pipeline_stage
+          );
+
+
+        const appointmentStart =
+          normalizeEpoch(
+            properties
+              .afspraak_start
+          );
+
+
+        const appointmentEnd =
+          normalizeEpoch(
+            properties
+              .afspraak_einde
+          );
+
+
+        const associations =
+          associationsByTicket.get(
+            String(
+              record.id
+            )
+          ) || {
+            results:
+              []
+          };
+
+
+        const makelaarId =
+          getAssociatedContactIdByType(
+            associations,
+            ASSOCIATION_TYPE_MAKELAAR
+          );
+
+
+        const associatedPhotographerId =
+          getAssociatedContactIdByType(
+            associations,
+            ASSOCIATION_TYPE_FOTOGRAAF
+          );
+
+
+        const photographerId =
+          String(
+            properties
+              .selected_photographer_id ||
+            associatedPhotographerId ||
+            ""
+          ).trim();
+
+
+        const makelaar =
+          makelaarId
+            ? contactsById.get(
+                String(
+                  makelaarId
+                )
+              ) ||
+              null
+            : null;
+
+
+        const fotograaf =
+          photographerId
+            ? contactsById.get(
+                photographerId
+              ) ||
+              null
+            : null;
+
+
+        return {
+
+          id:
+            String(
+              record.id
+            ),
+
+          boekingscode:
+            properties
+              .boekingscode ||
+            "",
+
+          adres:
+            properties
+              .adres ||
+            "",
+
+          diensten:
+            normalizePlannerServices(
+              properties
+                .diensten
+            ),
+
+          status,
+
+          afspraak_start:
+            appointmentStart,
+
+          afspraak_einde:
+            appointmentEnd,
+
+          makelaar,
+
+          fotograaf,
+
+          opmerking_klant:
+            properties
+              .opmerking_klant ||
+            "",
+
+          woning_oppervlakte_m2:
+            properties
+              .woning_oppervlakte_m2 ||
+            "",
+
+          huiseigenaar: {
+
+            naam:
+              properties
+                .huiseigenaar_naam ||
+              "",
+
+            email:
+              properties
+                .huiseigenaar_email ||
+              "",
+
+            telefoon:
+              properties
+                .huiseigenaar_telefoon ||
+              ""
+
+          },
+
+          planner: {
+
+            reason:
+              properties
+                .planner_reason ||
+              "",
+
+            note:
+              properties
+                .planner_note ||
+              "",
+
+            approved_at:
+              normalizeEpoch(
+                properties
+                  .planner_approved_at
+              )
+
+          },
+
+          created_at:
+            properties
+              .createdate ||
+            record.createdAt ||
+            ""
+
+        };
+
+      }
     );
 
 
   return bookings
-    .filter(Boolean)
     .sort(
       (
         a,
@@ -2464,6 +2808,10 @@ async function getPlannerAgendaBookings() {
 
 }
 
+
+// ============================================
+// UNIEKE CONTACTEN VOOR AGENDA
+// ============================================
 
 function getUniquePlannerAgendaContacts(
   bookings,
@@ -3280,7 +3628,7 @@ export default async function handler(
     // POST
     // =========================================
 
-        if (
+    if (
       req.method ===
       "POST"
     ) {
@@ -3564,7 +3912,7 @@ export default async function handler(
         }
 
 
-        const importResult =
+        const result =
           await runSimplyBookImport(
             rows
           );
@@ -3604,7 +3952,7 @@ export default async function handler(
 
             },
 
-            ...importResult
+            ...result
 
           });
 
@@ -3612,12 +3960,12 @@ export default async function handler(
 
 
       // =======================================
-      // INSTELLINGEN MAKELAAR OPSLAAN
+      // CONTACT INSTELLINGEN OPSLAAN
       // =======================================
 
       if (
         action ===
-        "update-contact-settings"
+        "save-contact-settings"
       ) {
 
         if (
@@ -3656,18 +4004,17 @@ export default async function handler(
         }
 
 
-        const currentContact =
+        const contact =
           await getContact(
             foundContact.id,
             [
-              "portal_role",
-              "email"
+              "portal_role"
             ]
           );
 
 
         if (
-          currentContact.properties
+          contact.properties
             ?.portal_role !==
           "makelaar"
         ) {
@@ -3683,127 +4030,45 @@ export default async function handler(
         }
 
 
-        const properties = {
-
-          firstname:
-            firstname !== undefined
-              ? String(
-                  firstname ||
-                  ""
-                ).trim()
-              : "",
-
-          lastname:
-            lastname !== undefined
-              ? String(
-                  lastname ||
-                  ""
-                ).trim()
-              : "",
-
-          phone:
-            phone !== undefined
-              ? String(
-                  phone ||
-                  ""
-                ).trim()
-              : "",
-
-          diensten:
-            Array.isArray(
-              diensten
-            )
-              ? diensten.join(";")
-              : diensten || ""
-
-        };
-
-
-        const updated =
-          await updateContact(
-            foundContact.id,
-            properties
-          );
-
-
-        return res
-          .status(200)
-          .json({
-
-            success:
-              true,
-
-            contact_id:
-              updated.id,
-
-            settings: {
-
-              firstname:
-                updated.properties
-                  ?.firstname ||
-                "",
-
-              lastname:
-                updated.properties
-                  ?.lastname ||
-                "",
-
-              phone:
-                updated.properties
-                  ?.phone ||
-                "",
-
-              email:
-                currentContact.properties
-                  ?.email ||
-                email,
-
-              diensten:
-                updated.properties
-                  ?.diensten ||
-                ""
-
-            }
-
-          });
-
-      }
-
-
-      // =======================================
-      // PLANNER UPDATE
-      // =======================================
-
-      if (
-        action ===
-        "planner-update"
-      ) {
-
-        if (
-          !ticket_id
-        ) {
-
-          return res
-            .status(400)
-            .json({
-              success: false,
-              error:
-                "ticket_id is verplicht"
-            });
-
-        }
-
-
         const properties =
           {};
 
 
         if (
-          address !== undefined
+          firstname !== undefined
         ) {
 
-          properties.adres =
-            address || "";
+          properties.firstname =
+            String(
+              firstname ||
+              ""
+            ).trim();
+
+        }
+
+
+        if (
+          lastname !== undefined
+        ) {
+
+          properties.lastname =
+            String(
+              lastname ||
+              ""
+            ).trim();
+
+        }
+
+
+        if (
+          phone !== undefined
+        ) {
+
+          properties.phone =
+            String(
+              phone ||
+              ""
+            ).trim();
 
         }
 
@@ -3817,123 +4082,15 @@ export default async function handler(
               diensten
             )
               ? diensten.join(";")
-              : diensten || "";
+              : diensten ||
+                "";
 
         }
-
-
-        if (
-          photographer_id !==
-          undefined
-        ) {
-
-          properties.selected_photographer_id =
-            String(
-              photographer_id ||
-              ""
-            );
-
-        }
-
-
-        if (
-          planner_reason !==
-          undefined
-        ) {
-
-          properties.planner_reason =
-            planner_reason ||
-            "";
-
-        }
-
-
-        if (
-          planner_note !==
-          undefined
-        ) {
-
-          properties.planner_note =
-            planner_note ||
-            "";
-
-        }
-
-
-        if (
-          start !== undefined ||
-          end !== undefined
-        ) {
-
-          const currentTicket =
-            await getTicket(
-              ticket_id,
-              [
-                "afspraak_start",
-                "afspraak_einde"
-              ]
-            );
-
-
-          const finalStart =
-            start !== undefined
-              ? start
-              : currentTicket
-                  .properties
-                  ?.afspraak_start;
-
-
-          const finalEnd =
-            end !== undefined
-              ? end
-              : currentTicket
-                  .properties
-                  ?.afspraak_einde;
-
-
-          const validation =
-            validatePlannerTimes(
-              finalStart,
-              finalEnd
-            );
-
-
-          if (
-            !validation.valid
-          ) {
-
-            return res
-              .status(400)
-              .json({
-                success: false,
-                error:
-                  validation.error
-              });
-
-          }
-
-
-          properties.afspraak_start =
-            String(
-              validation.startMs
-            );
-
-
-          properties.afspraak_einde =
-            String(
-              validation.endMs
-            );
-
-        }
-
-
-        properties.hs_pipeline_stage =
-          STAGE_REVIEW;
 
 
         const updated =
-          await updateTicket(
-            ticket_id,
+          await updateContact(
+            foundContact.id,
             properties
           );
 
@@ -3942,7 +4099,7 @@ export default async function handler(
           .status(200)
           .json({
             success: true,
-            ticket:
+            contact:
               updated
           });
 
@@ -3950,7 +4107,7 @@ export default async function handler(
 
 
       // =======================================
-      // PLANNER GOEDKEUREN
+      // PLANNER BOEKING GOEDKEUREN
       // =======================================
 
       if (
@@ -4278,7 +4435,7 @@ export default async function handler(
 
 
       // =======================================
-      // MAKELAAR TICKET-ACTIES
+      // MAKELAAR BOEKING-ACTIES
       // =======================================
 
       if (
@@ -4442,7 +4599,8 @@ export default async function handler(
                   diensten
                 )
                   ? diensten.join(";")
-                  : diensten || "",
+                  : diensten ||
+                    "",
 
               opmerking_klant:
                 opmerking_klant ||
