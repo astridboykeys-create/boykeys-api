@@ -1166,83 +1166,7 @@ function hasOverlap(
 }
 
 
-// ============================================
-// ACTIEVE FOTOGRAAFBOEKINGEN BINNEN RANGE
-//
-// Deze data gebruiken we voor de travel matrix.
-// Dit sluit zoveel mogelijk aan bij dezelfde
-// set die validatePlannerBooking() gebruikt.
-// ============================================
 
-async function getPlannerTravelBookings(
-  photographerId,
-  rangeStart,
-  rangeEnd
-) {
-
-  const startMs =
-    normalizeEpoch(
-      rangeStart
-    );
-
-
-  const endMs =
-    normalizeEpoch(
-      rangeEnd
-    );
-
-
-  if (
-    !startMs ||
-    !endMs ||
-    endMs <=
-      startMs
-  ) {
-
-    return [];
-  }
-
-
-  const response =
-    await getBookings(
-      photographerId
-    );
-
-
-  return (
-    response.results ||
-    []
-  )
-    .map(
-      ticketToBooking
-    )
-    .filter(
-      Boolean
-    )
-    .filter(
-      booking => {
-
-        const bookingStart =
-          booking.start.getTime();
-
-
-        return (
-          bookingStart >=
-            startMs &&
-          bookingStart <
-            endMs
-        );
-      }
-    )
-    .sort(
-      (
-        a,
-        b
-      ) =>
-        a.start.getTime() -
-        b.start.getTime()
-    );
-}
 
 
 // ============================================
@@ -1266,8 +1190,7 @@ async function getPlannerTravelBookings(
 
 async function getPlannerTravelOverlay(
   photographerId,
-  rangeStart,
-  rangeEnd,
+  agendaBookings,
   availabilityOverlay
 ) {
 
@@ -1281,11 +1204,88 @@ async function getPlannerTravelOverlay(
 
 
   const bookings =
-    await getPlannerTravelBookings(
-      photographerId,
-      rangeStart,
-      rangeEnd
-    );
+    (
+      agendaBookings ||
+      []
+    )
+      .filter(
+        booking => {
+
+          if (
+            String(
+              booking.fotograaf?.id ||
+              ""
+            ) !==
+            String(
+              photographerId
+            )
+          ) {
+
+            return false;
+          }
+
+
+          /*
+           * Zelfde gedachte als getBookings():
+           * afgeronde boekingen tellen niet mee
+           * voor toekomstige planning/reistijd.
+           */
+
+          if (
+            booking.status?.key ===
+            "completed"
+          ) {
+
+            return false;
+          }
+
+
+          return (
+            normalizeEpoch(
+              booking.afspraak_start
+            ) &&
+            normalizeEpoch(
+              booking.afspraak_einde
+            )
+          );
+        }
+      )
+      .map(
+        booking => ({
+
+          id:
+            String(
+              booking.id
+            ),
+
+          start:
+            new Date(
+              Number(
+                booking.afspraak_start
+              )
+            ),
+
+          end:
+            new Date(
+              Number(
+                booking.afspraak_einde
+              )
+            ),
+
+          adres:
+            booking.adres ||
+            ""
+
+        })
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          a.start.getTime() -
+          b.start.getTime()
+      );
 
 
   const nodes =
@@ -1336,7 +1336,7 @@ async function getPlannerTravelOverlay(
 
 
   // =========================================
-  // BOEKINGEN GEOCODEN
+  // UNIEKE ADRESSEN
   // =========================================
 
   const uniqueAddressMap =
@@ -1381,25 +1381,15 @@ async function getPlannerTravelOverlay(
 
       uniqueAddressMap.set(
         normalizedAddress,
-        {
-          address,
-          bookings:
-            []
-        }
+        address
       );
     }
-
-
-    uniqueAddressMap
-      .get(
-        normalizedAddress
-      )
-      .bookings
-      .push(
-        booking
-      );
   }
 
+
+  // =========================================
+  // ADRESSEN GEOCODEN
+  // =========================================
 
   const geocodedAddresses =
     new Map();
@@ -1412,7 +1402,7 @@ async function getPlannerTravelOverlay(
       async (
         [
           normalizedAddress,
-          item
+          address
         ]
       ) => {
 
@@ -1420,7 +1410,7 @@ async function getPlannerTravelOverlay(
 
           const location =
             await geocodeAddress(
-              item.address
+              address
             );
 
 
@@ -1434,7 +1424,7 @@ async function getPlannerTravelOverlay(
         ) {
 
           console.error(
-            `Travel overlay: adres kon niet worden geocodeerd: ${item.address}`,
+            `Travel overlay: adres kon niet worden geocodeerd: ${address}`,
             error
           );
         }
@@ -1442,6 +1432,10 @@ async function getPlannerTravelOverlay(
     )
   );
 
+
+  // =========================================
+  // BOOKING NODES
+  // =========================================
 
   for (
     const booking of
@@ -1519,8 +1513,7 @@ async function getPlannerTravelOverlay(
 
 
   // =========================================
-  // ALS ER MINDER DAN 2 NODES ZIJN IS ER
-  // GEEN ROUTEMATRIX NODIG.
+  // MATRIX
   // =========================================
 
   let matrix =
