@@ -4206,7 +4206,7 @@ export default async function handler(
 
     }
 
-    // =========================================
+      // =========================================
     // POST
     // =========================================
 
@@ -4741,6 +4741,409 @@ export default async function handler(
 
             contact:
               updated
+          });
+
+      }
+
+
+      // =======================================
+      // PLANNER BOEKING VERSLEPEN
+      //
+      // V1:
+      // - zelfde fotograaf
+      // - zelfde duur
+      // - andere dag/tijd toegestaan
+      // - volledige planner-validatie
+      // =======================================
+
+      if (
+        action ===
+        "planner-reschedule"
+      ) {
+
+        if (
+          !contact_id
+        ) {
+
+          return res
+            .status(
+              400
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                "contact_id is verplicht"
+            });
+
+        }
+
+
+        if (
+          !ticket_id
+        ) {
+
+          return res
+            .status(
+              400
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                "ticket_id is verplicht"
+            });
+
+        }
+
+
+        const plannerContact =
+          await getContact(
+            contact_id,
+            [
+              "firstname",
+              "lastname",
+              "email",
+              "portal_role"
+            ]
+          );
+
+
+        const plannerRole =
+          String(
+            plannerContact
+              .properties
+              ?.portal_role ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        if (
+          plannerRole !==
+          "planner"
+        ) {
+
+          return res
+            .status(
+              403
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                "Geen toegang tot Planner"
+            });
+
+        }
+
+
+        const [
+          currentTicket,
+          associations
+        ] =
+          await Promise.all([
+
+            getTicket(
+              ticket_id,
+              [
+                "adres",
+                "selected_photographer_id",
+                "afspraak_start",
+                "afspraak_einde",
+                "hs_pipeline_stage"
+              ]
+            ),
+
+            getTicketAssociations(
+              ticket_id,
+              "contacts"
+            )
+
+          ]);
+
+
+        const currentProperties =
+          currentTicket.properties ||
+          {};
+
+
+        const associatedPhotographerId =
+          getAssociatedContactIdByType(
+            associations,
+            ASSOCIATION_TYPE_FOTOGRAAF
+          );
+
+
+        const currentPhotographerId =
+          String(
+            currentProperties
+              .selected_photographer_id ||
+            associatedPhotographerId ||
+            ""
+          ).trim();
+
+
+        if (
+          !currentPhotographerId
+        ) {
+
+          return res
+            .status(
+              400
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                "Deze boeking heeft geen fotograaf."
+            });
+
+        }
+
+
+        const currentStart =
+          normalizeEpoch(
+            currentProperties
+              .afspraak_start
+          );
+
+
+        const currentEnd =
+          normalizeEpoch(
+            currentProperties
+              .afspraak_einde
+          );
+
+
+        if (
+          !currentStart ||
+          !currentEnd
+        ) {
+
+          return res
+            .status(
+              400
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                "De huidige afspraak heeft geen geldige begin- en eindtijd."
+            });
+
+        }
+
+
+        const timeValidation =
+          validatePlannerTimes(
+            start,
+            end
+          );
+
+
+        if (
+          !timeValidation.valid
+        ) {
+
+          return res
+            .status(
+              400
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                timeValidation.error
+            });
+
+        }
+
+
+        const currentDuration =
+          currentEnd -
+          currentStart;
+
+
+        const newDuration =
+          timeValidation.endMs -
+          timeValidation.startMs;
+
+
+        if (
+          currentDuration !==
+          newDuration
+        ) {
+
+          return res
+            .status(
+              400
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                "Bij verslepen moet de duur van de boeking gelijk blijven."
+            });
+
+        }
+
+
+        if (
+          currentStart ===
+            timeValidation.startMs &&
+          currentEnd ===
+            timeValidation.endMs
+        ) {
+
+          return res
+            .status(
+              200
+            )
+            .json({
+
+              success:
+                true,
+
+              rescheduled:
+                false,
+
+              unchanged:
+                true
+
+            });
+
+        }
+
+
+        const address =
+          String(
+            currentProperties
+              .adres ||
+            ""
+          ).trim();
+
+
+        if (
+          !address
+        ) {
+
+          return res
+            .status(
+              400
+            )
+            .json({
+              success:
+                false,
+
+              error:
+                "De boeking heeft geen adres."
+            });
+
+        }
+
+
+        const plannerValidation =
+          await validatePlannerBooking({
+
+            ticketId:
+              ticket_id,
+
+            photographerId:
+              currentPhotographerId,
+
+            address,
+
+            startMs:
+              timeValidation.startMs,
+
+            endMs:
+              timeValidation.endMs
+
+          });
+
+
+        if (
+          !plannerValidation.valid
+        ) {
+
+          return res
+            .status(
+              409
+            )
+            .json({
+
+              success:
+                false,
+
+              validation_failed:
+                true,
+
+              error:
+                plannerValidation.error
+
+            });
+
+        }
+
+
+        const updated =
+          await updateTicket(
+            ticket_id,
+            {
+
+              afspraak_start:
+                String(
+                  timeValidation.startMs
+                ),
+
+              afspraak_einde:
+                String(
+                  timeValidation.endMs
+                )
+
+            }
+          );
+
+
+        return res
+          .status(
+            200
+          )
+          .json({
+
+            success:
+              true,
+
+            rescheduled:
+              true,
+
+            old_start:
+              currentStart,
+
+            old_end:
+              currentEnd,
+
+            new_start:
+              timeValidation.startMs,
+
+            new_end:
+              timeValidation.endMs,
+
+            validation:
+              plannerValidation,
+
+            ticket:
+              updated
+
           });
 
       }
@@ -5413,8 +5816,3 @@ export default async function handler(
   }
 
 }
-
-
-    
-
-
