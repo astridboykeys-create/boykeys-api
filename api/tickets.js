@@ -4994,7 +4994,8 @@ export default async function handler(
         action,
         ticket_id,
         contact_id,
-
+        mode, 
+        
         email,
         firstname,
         lastname,
@@ -5726,32 +5727,104 @@ export default async function handler(
 
 
         const currentDuration =
-          currentEnd -
-          currentStart;
+  currentEnd -
+  currentStart;
 
 
-        const newDuration =
-          timeValidation.endMs -
-          timeValidation.startMs;
+const newDuration =
+  timeValidation.endMs -
+  timeValidation.startMs;
 
 
-        if (
-          currentDuration !==
-          newDuration
-        ) {
+const rescheduleMode =
+  mode ===
+  "resize"
+    ? "resize"
+    : "move";
 
-          return res
-            .status(
-              400
-            )
-            .json({
-              success:
-                false,
 
-              error:
-                "Bij verslepen moet de duur van de boeking gelijk blijven."
-            });
-        }
+// =======================================
+// NORMAAL VERSLEPEN
+//
+// Duur moet gelijk blijven.
+// =======================================
+
+if (
+  rescheduleMode ===
+    "move" &&
+  currentDuration !==
+    newDuration
+) {
+
+  return res
+    .status(
+      400
+    )
+    .json({
+      success:
+        false,
+
+      error:
+        "Bij verslepen moet de duur van de boeking gelijk blijven."
+    });
+}
+
+
+// =======================================
+// RESIZE
+//
+// Starttijd moet gelijk blijven.
+// Alleen eindtijd verandert.
+// =======================================
+
+if (
+  rescheduleMode ===
+    "resize"
+) {
+
+  if (
+    currentStart !==
+    timeValidation.startMs
+  ) {
+
+    return res
+      .status(
+        400
+      )
+      .json({
+        success:
+          false,
+
+        error:
+          "Bij het aanpassen van de duur mag de begintijd niet veranderen."
+      });
+  }
+
+
+  const minimumDurationMs =
+    15 *
+    60 *
+    1000;
+
+
+  if (
+    newDuration <
+    minimumDurationMs
+  ) {
+
+    return res
+      .status(
+        400
+      )
+      .json({
+        success:
+          false,
+
+        error:
+          "Een boeking moet minimaal 15 minuten duren."
+      });
+  }
+}
 
 
         if (
