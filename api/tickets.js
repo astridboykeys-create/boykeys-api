@@ -130,7 +130,9 @@ function validatePlannerTimes(
   ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         "Begin- en eindtijd zijn verplicht."
     };
@@ -143,7 +145,9 @@ function validatePlannerTimes(
   ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         "De eindtijd moet na de begintijd liggen."
     };
@@ -151,7 +155,9 @@ function validatePlannerTimes(
 
 
   return {
-    valid: true,
+    valid:
+      true,
+
     startMs,
     endMs
   };
@@ -533,7 +539,6 @@ function normalizeRepeatDays(
   if (
     !value
   ) {
-
     return [];
   }
 
@@ -698,7 +703,6 @@ function expandBlocksForDate(
 
 
     result.push({
-
       ...block,
 
       start_at:
@@ -712,7 +716,6 @@ function expandBlocksForDate(
           selectedDate,
           endTime
         ).toISOString()
-
     });
   }
 
@@ -784,16 +787,6 @@ function parseHomeLocation(
 
 // ============================================
 // PLANNER BESCHIKBAARHEID OVERLAY
-//
-// Alleen voor één geselecteerde / gezochte
-// fotograaf.
-//
-// We sturen nu óók mee:
-// - thuislocatie
-// - max reistijd
-//
-// Dat gebruiken we straks voor directe
-// client-side drag/drop validatie.
 // ============================================
 
 async function getPlannerAvailabilityOverlay(
@@ -887,7 +880,6 @@ async function getPlannerAvailabilityOverlay(
     rawBlocks
   ] =
     await Promise.all([
-
       getAvailability(
         photographerId
       ),
@@ -895,7 +887,6 @@ async function getPlannerAvailabilityOverlay(
       getBlocks(
         photographerId
       )
-
     ]);
 
 
@@ -986,7 +977,6 @@ async function getPlannerAvailabilityOverlay(
 
 
             return {
-
               id:
                 block.id
                   ? String(
@@ -995,7 +985,6 @@ async function getPlannerAvailabilityOverlay(
                   : null,
 
               start,
-
               end,
 
               reason:
@@ -1003,7 +992,6 @@ async function getPlannerAvailabilityOverlay(
                   block.reason ||
                   ""
                 ).trim()
-
             };
           }
         )
@@ -1013,7 +1001,6 @@ async function getPlannerAvailabilityOverlay(
 
 
     days.push({
-
       date:
         dateString,
 
@@ -1021,7 +1008,6 @@ async function getPlannerAvailabilityOverlay(
         dayKey,
 
       working: {
-
         enabled,
 
         start:
@@ -1035,11 +1021,9 @@ async function getPlannerAvailabilityOverlay(
             ? workingDay.end ||
               null
             : null
-
       },
 
       blocks
-
     });
 
 
@@ -1052,7 +1036,6 @@ async function getPlannerAvailabilityOverlay(
 
 
   return {
-
     photographer_id:
       String(
         photographerId
@@ -1076,17 +1059,14 @@ async function getPlannerAvailabilityOverlay(
       maxTravelMinutes,
 
     home: {
-
       latitude:
         home.latitude,
 
       longitude:
         home.longitude
-
     },
 
     days
-
   };
 }
 
@@ -1126,11 +1106,8 @@ function ticketToBooking(
 
 
   return {
-
     id:
-      String(
-        ticket.id
-      ),
+      ticket.id,
 
     start:
       new Date(
@@ -1145,7 +1122,6 @@ function ticketToBooking(
     adres:
       p.adres ||
       ""
-
   };
 }
 
@@ -1166,438 +1142,8 @@ function hasOverlap(
 }
 
 
-
-
-
 // ============================================
-// TRAVEL OVERLAY / CACHE
-//
-// Doel:
-// wanneer Lucas geselecteerd is, berekenen
-// we bij het laden van de agenda één matrix.
-//
-// De browser weet daarna DIRECT:
-// - reistijd home -> boeking
-// - reistijd boeking -> boeking
-//
-// Bij drag/drop hoeft dus niet eerst op Google
-// Routes gewacht te worden.
-//
-// keys:
-// "home"
-// "booking:<ticketId>"
-// ============================================
-
-async function getPlannerTravelOverlay(
-  photographerId,
-  agendaBookings,
-  availabilityOverlay
-) {
-
-  if (
-    !photographerId ||
-    !availabilityOverlay
-  ) {
-
-    return null;
-  }
-
-
-  const bookings =
-    (
-      agendaBookings ||
-      []
-    )
-      .filter(
-        booking => {
-
-          if (
-            String(
-              booking.fotograaf?.id ||
-              ""
-            ) !==
-            String(
-              photographerId
-            )
-          ) {
-
-            return false;
-          }
-
-
-          /*
-           * Zelfde gedachte als getBookings():
-           * afgeronde boekingen tellen niet mee
-           * voor toekomstige planning/reistijd.
-           */
-
-          if (
-            booking.status?.key ===
-            "completed"
-          ) {
-
-            return false;
-          }
-
-
-          return (
-            normalizeEpoch(
-              booking.afspraak_start
-            ) &&
-            normalizeEpoch(
-              booking.afspraak_einde
-            )
-          );
-        }
-      )
-      .map(
-        booking => ({
-
-          id:
-            String(
-              booking.id
-            ),
-
-          start:
-            new Date(
-              Number(
-                booking.afspraak_start
-              )
-            ),
-
-          end:
-            new Date(
-              Number(
-                booking.afspraak_einde
-              )
-            ),
-
-          adres:
-            booking.adres ||
-            ""
-
-        })
-      )
-      .sort(
-        (
-          a,
-          b
-        ) =>
-          a.start.getTime() -
-          b.start.getTime()
-      );
-
-
-  const nodes =
-    [];
-
-
-  // =========================================
-  // HOME NODE
-  // =========================================
-
-  const homeLat =
-    availabilityOverlay
-      .home
-      ?.latitude;
-
-
-  const homeLng =
-    availabilityOverlay
-      .home
-      ?.longitude;
-
-
-  if (
-    Number.isFinite(
-      homeLat
-    ) &&
-    Number.isFinite(
-      homeLng
-    )
-  ) {
-
-    nodes.push({
-
-      key:
-        "home",
-
-      type:
-        "home",
-
-      latitude:
-        homeLat,
-
-      longitude:
-        homeLng
-
-    });
-  }
-
-
-  // =========================================
-  // UNIEKE ADRESSEN
-  // =========================================
-
-  const uniqueAddressMap =
-    new Map();
-
-
-  for (
-    const booking of
-      bookings
-  ) {
-
-    const address =
-      String(
-        booking.adres ||
-        ""
-      ).trim();
-
-
-    if (
-      !address
-    ) {
-
-      continue;
-    }
-
-
-    const normalizedAddress =
-      address
-        .toLowerCase()
-        .replace(
-          /\s+/g,
-          " "
-        )
-        .trim();
-
-
-    if (
-      !uniqueAddressMap.has(
-        normalizedAddress
-      )
-    ) {
-
-      uniqueAddressMap.set(
-        normalizedAddress,
-        address
-      );
-    }
-  }
-
-
-  // =========================================
-  // ADRESSEN GEOCODEN
-  // =========================================
-
-  const geocodedAddresses =
-    new Map();
-
-
-  await Promise.all(
-    Array.from(
-      uniqueAddressMap.entries()
-    ).map(
-      async (
-        [
-          normalizedAddress,
-          address
-        ]
-      ) => {
-
-        try {
-
-          const location =
-            await geocodeAddress(
-              address
-            );
-
-
-          geocodedAddresses.set(
-            normalizedAddress,
-            location
-          );
-
-        } catch (
-          error
-        ) {
-
-          console.error(
-            `Travel overlay: adres kon niet worden geocodeerd: ${address}`,
-            error
-          );
-        }
-      }
-    )
-  );
-
-
-  // =========================================
-  // BOOKING NODES
-  // =========================================
-
-  for (
-    const booking of
-      bookings
-  ) {
-
-    const address =
-      String(
-        booking.adres ||
-        ""
-      ).trim();
-
-
-    if (
-      !address
-    ) {
-
-      continue;
-    }
-
-
-    const normalizedAddress =
-      address
-        .toLowerCase()
-        .replace(
-          /\s+/g,
-          " "
-        )
-        .trim();
-
-
-    const location =
-      geocodedAddresses.get(
-        normalizedAddress
-      );
-
-
-    if (
-      !location
-    ) {
-
-      continue;
-    }
-
-
-    nodes.push({
-
-      key:
-        `booking:${booking.id}`,
-
-      type:
-        "booking",
-
-      booking_id:
-        String(
-          booking.id
-        ),
-
-      address,
-
-      start:
-        booking.start.getTime(),
-
-      end:
-        booking.end.getTime(),
-
-      latitude:
-        location.latitude,
-
-      longitude:
-        location.longitude
-
-    });
-  }
-
-
-  // =========================================
-  // MATRIX
-  // =========================================
-
-  let matrix =
-    {};
-
-
-  if (
-    nodes.length >=
-    2
-  ) {
-
-    matrix =
-      await getTravelMatrix(
-        nodes
-      );
-  }
-
-
-  return {
-
-    photographer_id:
-      String(
-        photographerId
-      ),
-
-    max_travel_minutes:
-      availabilityOverlay
-        .max_travel_minutes ||
-      30,
-
-    nodes:
-      nodes.map(
-        node => {
-
-          if (
-            node.type ===
-            "home"
-          ) {
-
-            return {
-              key:
-                node.key,
-
-              type:
-                node.type
-            };
-          }
-
-
-          return {
-
-            key:
-              node.key,
-
-            type:
-              node.type,
-
-            booking_id:
-              node.booking_id,
-
-            address:
-              node.address,
-
-            start:
-              node.start,
-
-            end:
-              node.end
-
-          };
-        }
-      ),
-
-    matrix
-
-  };
-}
-
-
-// ============================================
-// VOLLEDIGE PLANNER VALIDATIE
-//
-// Dit blijft de DEFINITIEVE server-side check.
-// De nieuwe frontend-check vervangt dit dus niet.
+// VOLLEDIGE BACKEND VALIDATIE
 // ============================================
 
 async function validatePlannerBooking({
@@ -1640,8 +1186,13 @@ async function validatePlannerBooking({
 
 
   if (
-    photographer.properties
-      ?.portal_role !==
+    String(
+      photographer.properties
+        ?.portal_role ||
+      ""
+    )
+      .trim()
+      .toLowerCase() !==
     "fotograaf"
   ) {
 
@@ -1676,7 +1227,6 @@ async function validatePlannerBooking({
     bookingsResponse
   ] =
     await Promise.all([
-
       getAvailability(
         photographerId
       ),
@@ -1688,7 +1238,6 @@ async function validatePlannerBooking({
       getBookings(
         photographerId
       )
-
     ]);
 
 
@@ -2115,12 +1664,10 @@ async function validatePlannerBooking({
 
 
   return {
-
     valid:
       true,
 
     travel: {
-
       from:
         travelFrom,
 
@@ -2143,9 +1690,350 @@ async function validatePlannerBooking({
         travelToNext
           ?.distance_km ??
         null
+    }
+  };
+}
 
+
+// ============================================
+// TRAVEL OVERLAY
+//
+// BELANGRIJK:
+// gebruikt de AL GELADEN agenda-bookings.
+// Dus GEEN tweede HubSpot ticket search.
+// ============================================
+
+async function getPlannerTravelOverlay(
+  photographerId,
+  agendaBookings,
+  availabilityOverlay
+) {
+
+  if (
+    !photographerId ||
+    !availabilityOverlay
+  ) {
+
+    return null;
+  }
+
+
+  if (
+    String(
+      availabilityOverlay.photographer_id ||
+      ""
+    ) !==
+    String(
+      photographerId
+    )
+  ) {
+
+    return null;
+  }
+
+
+  const home =
+    availabilityOverlay.home ||
+    {};
+
+
+  const homeLatitude =
+    Number(
+      home.latitude
+    );
+
+
+  const homeLongitude =
+    Number(
+      home.longitude
+    );
+
+
+  if (
+    !Number.isFinite(
+      homeLatitude
+    ) ||
+    !Number.isFinite(
+      homeLongitude
+    )
+  ) {
+
+    return null;
+  }
+
+
+  const photographerBookings =
+    (
+      agendaBookings ||
+      []
+    )
+      .filter(
+        booking => {
+
+          if (
+            String(
+              booking.fotograaf?.id ||
+              ""
+            ) !==
+            String(
+              photographerId
+            )
+          ) {
+
+            return false;
+          }
+
+
+          if (
+            booking.status?.key ===
+            "completed"
+          ) {
+
+            return false;
+          }
+
+
+          return (
+            Boolean(
+              booking.adres
+            ) &&
+            Number.isFinite(
+              Number(
+                booking.afspraak_start
+              )
+            ) &&
+            Number.isFinite(
+              Number(
+                booking.afspraak_einde
+              )
+            )
+          );
+        }
+      );
+
+
+  const uniqueAddressMap =
+    new Map();
+
+
+  for (
+    const booking of
+      photographerBookings
+  ) {
+
+    const address =
+      String(
+        booking.adres ||
+        ""
+      ).trim();
+
+
+    if (
+      !address
+    ) {
+
+      continue;
     }
 
+
+    const normalized =
+      address
+        .toLowerCase()
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim();
+
+
+    if (
+      !uniqueAddressMap.has(
+        normalized
+      )
+    ) {
+
+      uniqueAddressMap.set(
+        normalized,
+        {
+          address,
+          location:
+            null
+        }
+      );
+    }
+  }
+
+
+  await Promise.all(
+    [
+      ...uniqueAddressMap.values()
+    ].map(
+      async item => {
+
+        try {
+
+          item.location =
+            await geocodeAddress(
+              item.address
+            );
+
+        } catch (
+          error
+        ) {
+
+          console.error(
+            "PLANNER TRAVEL GEOCODE ERROR",
+            item.address,
+            error
+          );
+
+
+          item.location =
+            null;
+        }
+      }
+    )
+  );
+
+
+  const nodes =
+    [
+      {
+        key:
+          "home",
+
+        type:
+          "home",
+
+        latitude:
+          homeLatitude,
+
+        longitude:
+          homeLongitude
+      }
+    ];
+
+
+  for (
+    const booking of
+      photographerBookings
+  ) {
+
+    const address =
+      String(
+        booking.adres ||
+        ""
+      ).trim();
+
+
+    const normalized =
+      address
+        .toLowerCase()
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim();
+
+
+    const location =
+      uniqueAddressMap.get(
+        normalized
+      )?.location ||
+      null;
+
+
+    if (
+      !location ||
+      !Number.isFinite(
+        Number(
+          location.latitude
+        )
+      ) ||
+      !Number.isFinite(
+        Number(
+          location.longitude
+        )
+      )
+    ) {
+
+      continue;
+    }
+
+
+    nodes.push({
+      key:
+        `booking:${booking.id}`,
+
+      type:
+        "booking",
+
+      booking_id:
+        String(
+          booking.id
+        ),
+
+      address,
+
+      start:
+        Number(
+          booking.afspraak_start
+        ),
+
+      end:
+        Number(
+          booking.afspraak_einde
+        ),
+
+      latitude:
+        Number(
+          location.latitude
+        ),
+
+      longitude:
+        Number(
+          location.longitude
+        )
+    });
+  }
+
+
+  /*
+   * Als er alleen home is, is er nog steeds
+   * een geldige overlay maar geen matrix nodig.
+   */
+
+  let matrix =
+    {};
+
+
+  if (
+    nodes.length >
+    1
+  ) {
+
+    matrix =
+      await getTravelMatrix(
+        nodes
+      );
+  }
+
+
+  return {
+    photographer_id:
+      String(
+        photographerId
+      ),
+
+    max_travel_minutes:
+      Number(
+        availabilityOverlay.max_travel_minutes
+      ) ||
+      30,
+
+    nodes,
+
+    matrix
   };
 }
 
@@ -2154,216 +2042,153 @@ async function validatePlannerBooking({
 // PLANNER BOEKINGENOVERZICHT
 // ============================================
 
-const ASSOCIATION_TYPE_FOTOGRAAF =
-  79;
+const ASSOCIATION_TYPE_FOTOGRAAF = 79;
+const ASSOCIATION_TYPE_MAKELAAR = 81;
 
 
-const ASSOCIATION_TYPE_MAKELAAR =
-  81;
-
-
-function normalizePlannerServices(
-  value
-) {
-
-  if (
-    !value
-  ) {
-
-    return [];
-  }
-
-
-  if (
-    Array.isArray(
-      value
-    )
-  ) {
-
-    return value
-      .map(
-        item =>
-          String(
-            item
-          ).trim()
-      )
-      .filter(
-        Boolean
-      );
-  }
-
-
-  return String(
-    value
-  )
-    .split(";")
-    .map(
-      item =>
-        item.trim()
-    )
-    .filter(
-      Boolean
-    );
-}
-
+// ============================================
+// STAGES
+// ============================================
 
 function getPlannerStatus(
-  stage
+  stageId
 ) {
 
-  const value =
+  const stage =
     String(
-      stage ||
+      stageId ||
       ""
     );
 
 
-  if (
-    value ===
-    String(
-      STAGE_REVIEW
-    )
-  ) {
+  const statuses = {
 
-    return {
+    "1": {
+      key:
+        "new",
 
+      label:
+        "Nieuw"
+    },
+
+    "2": {
       key:
         "review",
 
       label:
-        "In beoordeling"
+        "Review"
+    },
 
-    };
-  }
-
-
-  if (
-    value ===
-    String(
-      STAGE_APPROVED
-    )
-  ) {
-
-    return {
-
+    "3": {
       key:
         "approved",
 
       label:
-        "Goedgekeurd"
+        "Approved"
+    },
 
-    };
-  }
-
-
-  if (
-    value ===
-    String(
-      STAGE_REJECTED
-    )
-  ) {
-
-    return {
-
+    "5960815822": {
       key:
         "rejected",
 
       label:
-        "Afgekeurd"
+        "Afgewezen"
+    },
 
-    };
-  }
+    "4": {
+      key:
+        "completed",
+
+      label:
+        "Afgerond"
+    },
+
+    "5960765665": {
+      key:
+        "cancelled",
+
+      label:
+        "Geannuleerd"
+    },
+
+    "5980739821": {
+      key:
+        "shoot_day",
+
+      label:
+        "Opnamedag"
+    },
+
+    "5980739822": {
+      key:
+        "processing",
+
+      label:
+        "Pakket in behandeling"
+    }
+  };
 
 
-  return null;
+  return (
+    statuses[
+      stage
+    ] ||
+    {
+      key:
+        "unknown",
+
+      label:
+        "Onbekend"
+    }
+  );
 }
 
 
-function getAssociatedContactIdByType(
-  associations,
-  associationTypeId
-) {
-
-  const results =
-    associations?.results ||
-    associations?.to ||
-    [];
-
-
-  for (
-    const association of
-      results
-  ) {
-
-    const types =
-      association.associationTypes ||
-      association.types ||
-      [];
-
-
-    const matches =
-      types.some(
-        type =>
-          Number(
-            type.typeId
-          ) ===
-          Number(
-            associationTypeId
-          )
-      );
-
-
-    if (
-      !matches
-    ) {
-
-      continue;
-    }
-
-
-    const contactId =
-      association.toObjectId ||
-      association.id ||
-      association.to?.id ||
-      null;
-
-
-    if (
-      contactId
-    ) {
-
-      return String(
-        contactId
-      );
-    }
-  }
-
-
-  return null;
-}
-
+// ============================================
+// CONTACT DISPLAY NAME
+// ============================================
 
 function getContactDisplayName(
   contact
 ) {
 
-  if (
-    !contact
-  ) {
-
-    return "";
-  }
-
-
   const properties =
-    contact.properties ||
+    contact?.properties ||
     {};
+
+
+  const firstname =
+    String(
+      properties.firstname ||
+      ""
+    ).trim();
+
+
+  const lastname =
+    String(
+      properties.lastname ||
+      ""
+    ).trim();
+
+
+  const company =
+    String(
+      properties.company ||
+      ""
+    ).trim();
+
+
+  const email =
+    String(
+      properties.email ||
+      ""
+    ).trim();
 
 
   const fullName =
     [
-      properties.firstname,
-      properties.lastname
+      firstname,
+      lastname
     ]
       .filter(
         Boolean
@@ -2374,102 +2199,168 @@ function getContactDisplayName(
 
   return (
     fullName ||
-    properties.company ||
-    properties.email ||
-    ""
+    company ||
+    email ||
+    "Onbekend"
   );
 }
 
 
-async function getPlannerContact(
-  contactId
+// ============================================
+// ASSOCIATION HELPERS
+// ============================================
+
+function getAssociationItems(
+  associations
 ) {
 
   if (
-    !contactId
+    !associations
   ) {
 
-    return null;
+    return [];
   }
 
 
-  try {
+  if (
+    Array.isArray(
+      associations
+    )
+  ) {
 
-    const contact =
-      await getContact(
-        contactId,
-        [
-          "firstname",
-          "lastname",
-          "email",
-          "company",
-          "portal_role"
-        ]
+    return associations;
+  }
+
+
+  if (
+    Array.isArray(
+      associations.results
+    )
+  ) {
+
+    return associations.results;
+  }
+
+
+  if (
+    Array.isArray(
+      associations.to
+    )
+  ) {
+
+    return associations.to;
+  }
+
+
+  return [];
+}
+
+
+function getAssociationTypes(
+  association
+) {
+
+  if (
+    Array.isArray(
+      association?.associationTypes
+    )
+  ) {
+
+    return association.associationTypes;
+  }
+
+
+  if (
+    Array.isArray(
+      association?.types
+    )
+  ) {
+
+    return association.types;
+  }
+
+
+  return [];
+}
+
+
+function getAssociationTargetId(
+  association
+) {
+
+  return String(
+    association?.toObjectId ||
+    association?.id ||
+    association?.to?.id ||
+    ""
+  ).trim();
+}
+
+
+function getAssociatedContactIdByType(
+  associations,
+  typeId
+) {
+
+  for (
+    const association of
+      getAssociationItems(
+        associations
+      )
+  ) {
+
+    const types =
+      getAssociationTypes(
+        association
       );
 
 
-    return {
-
-      id:
-        String(
-          contact.id
-        ),
-
-      name:
-        getContactDisplayName(
-          contact
-        ),
-
-      firstname:
-        contact.properties
-          ?.firstname ||
-        "",
-
-      lastname:
-        contact.properties
-          ?.lastname ||
-        "",
-
-      email:
-        contact.properties
-          ?.email ||
-        "",
-
-      company:
-        contact.properties
-          ?.company ||
-        "",
-
-      role:
-        contact.properties
-          ?.portal_role ||
-        ""
-
-    };
-
-  } catch (
-    error
-  ) {
-
-    console.error(
-      `Planner contact ${contactId} kon niet worden geladen:`,
-      error
-    );
+    const hasType =
+      types.some(
+        type =>
+          Number(
+            type?.typeId
+          ) ===
+          Number(
+            typeId
+          )
+      );
 
 
-    return null;
+    if (
+      !hasType
+    ) {
+
+      continue;
+    }
+
+
+    const contactId =
+      getAssociationTargetId(
+        association
+      );
+
+
+    if (
+      contactId
+    ) {
+
+      return contactId;
+    }
   }
+
+
+  return null;
 }
 
 
 // ============================================
-// PLANNER BATCH HELPERS
+// CHUNK HELPER
 // ============================================
 
 function chunkArray(
   items,
-  size =
-    1000
+  size = 1000
 ) {
 
   const chunks =
@@ -2478,17 +2369,14 @@ function chunkArray(
 
   for (
     let index = 0;
-    index <
-      items.length;
-    index +=
-      size
+    index < items.length;
+    index += size
   ) {
 
     chunks.push(
       items.slice(
         index,
-        index +
-          size
+        index + size
       )
     );
   }
@@ -2500,6 +2388,8 @@ function chunkArray(
 
 // ============================================
 // BATCH ASSOCIATIONS
+//
+// 1 HubSpot call per maximaal 1000 boekingen.
 // ============================================
 
 async function loadPlannerAssociations(
@@ -2606,6 +2496,11 @@ async function loadPlannerAssociations(
   }
 
 
+  /*
+   * Zorg dat iedere boeking altijd
+   * een entry heeft.
+   */
+
   for (
     const ticketId of
       ticketIds
@@ -2620,8 +2515,7 @@ async function loadPlannerAssociations(
       associationsByTicket.set(
         ticketId,
         {
-          results:
-            []
+          results: []
         }
       );
     }
@@ -2633,7 +2527,7 @@ async function loadPlannerAssociations(
 
 
 // ============================================
-// CONTACT RECORD NORMALISEREN
+// NORMALISEER CONTACT
 // ============================================
 
 function plannerContactFromRecord(
@@ -2650,7 +2544,6 @@ function plannerContactFromRecord(
 
 
   return {
-
     id:
       String(
         contact.id
@@ -2685,13 +2578,14 @@ function plannerContactFromRecord(
       contact.properties
         ?.portal_role ||
       ""
-
   };
 }
 
 
 // ============================================
-// BATCH CONTACTEN
+// BATCH CONTACTS
+//
+// HubSpot contact batch/read = max 100.
 // ============================================
 
 async function loadPlannerContacts(
@@ -2748,7 +2642,6 @@ async function loadPlannerContacts(
         "/crm/v3/objects/contacts/batch/read",
         "POST",
         {
-
           properties: [
             "firstname",
             "lastname",
@@ -2763,7 +2656,6 @@ async function loadPlannerContacts(
                 id
               })
             )
-
         }
       );
 
@@ -2803,7 +2695,7 @@ async function loadPlannerContacts(
 
 
 // ============================================
-// RECORDS VERRIJKEN
+// AGENDA RECORDS ENRICHEN
 // ============================================
 
 async function enrichPlannerRecords(
@@ -2816,13 +2708,11 @@ async function enrichPlannerRecords(
   ) {
 
     return {
-
       associationsByTicket:
         new Map(),
 
       contactsById:
         new Map()
-
     };
   }
 
@@ -2852,9 +2742,9 @@ async function enrichPlannerRecords(
         String(
           record.id
         )
-      ) || {
-        results:
-          []
+      ) ||
+      {
+        results: []
       };
 
 
@@ -2872,10 +2762,17 @@ async function enrichPlannerRecords(
       );
 
 
+    /*
+     * selected_photographer_id heeft voorrang.
+     *
+     * Imported boekingen hebben hem normaal
+     * gelijk aan de association, maar dit maakt
+     * bestaande oudere boekingen ook robuust.
+     */
+
     const photographerId =
       String(
-        properties
-          .selected_photographer_id ||
+        properties.selected_photographer_id ||
         associatedPhotographerId ||
         ""
       ).trim();
@@ -2918,462 +2815,217 @@ async function enrichPlannerRecords(
   };
 }
 
-// ============================================
-// PLANNER DASHBOARD RECORDS
-// ============================================
-
-async function searchPlannerBookingRecords() {
-
-  const properties = [
-
-    "boekingscode",
-    "adres",
-    "diensten",
-
-    "selected_photographer_id",
-
-    "afspraak_start",
-    "afspraak_einde",
-
-    "opmerking_klant",
-
-    "woning_oppervlakte_m2",
-
-    "huiseigenaar_naam",
-    "huiseigenaar_email",
-    "huiseigenaar_telefoon",
-
-    "planner_reason",
-    "planner_note",
-    "planner_approved_at",
-
-    "hs_pipeline_stage",
-
-    "createdate"
-
-  ];
-
-
-  const results =
-    [];
-
-
-  let after =
-    null;
-
-
-  do {
-
-    const body = {
-
-      filterGroups: [
-        {
-          filters: [
-            {
-              propertyName:
-                "hs_pipeline_stage",
-
-              operator:
-                "IN",
-
-              values: [
-                String(
-                  STAGE_REVIEW
-                ),
-                String(
-                  STAGE_APPROVED
-                ),
-                String(
-                  STAGE_REJECTED
-                )
-              ]
-            }
-          ]
-        }
-      ],
-
-      properties,
-
-      limit:
-        100
-
-    };
-
-
-    if (
-      after
-    ) {
-
-      body.after =
-        after;
-    }
-
-
-    const response =
-      await hubspotRequest(
-        "/crm/v3/objects/tickets/search",
-        "POST",
-        body
-      );
-
-
-    results.push(
-      ...(
-        response.results ||
-        []
-      )
-    );
-
-
-    after =
-      response.paging
-        ?.next
-        ?.after ||
-      null;
-
-  } while (
-    after
-  );
-
-
-  return results;
-}
-
 
 // ============================================
-// PLANNER DASHBOARD BOEKINGEN
+// DIENSTEN
 // ============================================
 
-async function getPlannerBookings() {
-
-  const records =
-    await searchPlannerBookingRecords();
-
-
-  const {
-    associationsByTicket,
-    contactsById
-  } =
-    await enrichPlannerRecords(
-      records
-    );
-
-
-  const bookings =
-    records.map(
-      record => {
-
-        const properties =
-          record.properties ||
-          {};
-
-
-        const status =
-          getPlannerStatus(
-            properties
-              .hs_pipeline_stage
-          );
-
-
-        if (
-          !status
-        ) {
-
-          return null;
-        }
-
-
-        const associations =
-          associationsByTicket.get(
-            String(
-              record.id
-            )
-          ) || {
-            results:
-              []
-          };
-
-
-        const makelaarId =
-          getAssociatedContactIdByType(
-            associations,
-            ASSOCIATION_TYPE_MAKELAAR
-          );
-
-
-        const associatedPhotographerId =
-          getAssociatedContactIdByType(
-            associations,
-            ASSOCIATION_TYPE_FOTOGRAAF
-          );
-
-
-        const photographerId =
-          String(
-            properties
-              .selected_photographer_id ||
-            associatedPhotographerId ||
-            ""
-          ).trim();
-
-
-        const makelaar =
-          makelaarId
-            ? contactsById.get(
-                String(
-                  makelaarId
-                )
-              ) ||
-              null
-            : null;
-
-
-        const fotograaf =
-          photographerId
-            ? contactsById.get(
-                photographerId
-              ) ||
-              null
-            : null;
-
-
-        return {
-
-          id:
-            String(
-              record.id
-            ),
-
-          boekingscode:
-            properties
-              .boekingscode ||
-            "",
-
-          adres:
-            properties
-              .adres ||
-            "",
-
-          diensten:
-            normalizePlannerServices(
-              properties
-                .diensten
-            ),
-
-          status,
-
-          afspraak_start:
-            normalizeEpoch(
-              properties
-                .afspraak_start
-            ),
-
-          afspraak_einde:
-            normalizeEpoch(
-              properties
-                .afspraak_einde
-            ),
-
-          makelaar,
-
-          fotograaf,
-
-          opmerking_klant:
-            properties
-              .opmerking_klant ||
-            "",
-
-          woning_oppervlakte_m2:
-            properties
-              .woning_oppervlakte_m2 ||
-            "",
-
-          huiseigenaar: {
-
-            naam:
-              properties
-                .huiseigenaar_naam ||
-              "",
-
-            email:
-              properties
-                .huiseigenaar_email ||
-              "",
-
-            telefoon:
-              properties
-                .huiseigenaar_telefoon ||
-              ""
-
-          },
-
-          planner: {
-
-            reason:
-              properties
-                .planner_reason ||
-              "",
-
-            note:
-              properties
-                .planner_note ||
-              "",
-
-            approved_at:
-              normalizeEpoch(
-                properties
-                  .planner_approved_at
-              )
-
-          },
-
-          created_at:
-            properties
-              .createdate ||
-            record.createdAt ||
-            ""
-
-        };
-
-      }
-    );
-
-
-  return bookings
-    .filter(
-      Boolean
-    )
-    .sort(
-      (
-        a,
-        b
-      ) => {
-
-        const aStart =
-          a.afspraak_start ||
-          Number.MAX_SAFE_INTEGER;
-
-
-        const bStart =
-          b.afspraak_start ||
-          Number.MAX_SAFE_INTEGER;
-
-
-        return (
-          aStart -
-          bStart
-        );
-      }
-    );
-}
-
-
-// ============================================
-// PLANNER AGENDA STATUS
-// ============================================
-
-function getPlannerAgendaStatus(
-  stage
+function normalizeBookingServices(
+  value
 ) {
 
-  const value =
-    String(
-      stage ||
-      ""
+  if (
+    !value
+  ) {
+
+    return [];
+  }
+
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+
+    return value
+      .map(
+        item =>
+          String(
+            item ||
+            ""
+          ).trim()
+      )
+      .filter(
+        Boolean
+      );
+  }
+
+
+  return String(
+    value
+  )
+    .split(";")
+    .map(
+      item =>
+        item.trim()
+    )
+    .filter(
+      Boolean
     );
-
-
-  if (
-    value ===
-    String(
-      STAGE_REVIEW
-    )
-  ) {
-
-    return {
-      key:
-        "review",
-
-      label:
-        "In beoordeling"
-    };
-  }
-
-
-  if (
-    value ===
-    String(
-      STAGE_APPROVED
-    )
-  ) {
-
-    return {
-      key:
-        "approved",
-
-      label:
-        "Goedgekeurd"
-    };
-  }
-
-
-  if (
-    value ===
-    String(
-      STAGE_OPNAMEDAG
-    )
-  ) {
-
-    return {
-      key:
-        "shootday",
-
-      label:
-        "Opnamedag"
-    };
-  }
-
-
-  if (
-    value ===
-    String(
-      STAGE_PAKKET_IN_BEHANDELING
-    )
-  ) {
-
-    return {
-      key:
-        "processing",
-
-      label:
-        "Pakket in behandeling"
-    };
-  }
-
-
-  if (
-    value ===
-    String(
-      STAGE_CLOSED
-    )
-  ) {
-
-    return {
-      key:
-        "completed",
-
-      label:
-        "Afgerond"
-    };
-  }
-
-
-  return null;
 }
 
 
 // ============================================
-// AGENDA DATUMBEREIK
+// BOOKING NORMALIZATION
+// ============================================
+
+function normalizePlannerBooking(
+  record,
+  associationsByTicket,
+  contactsById
+) {
+
+  const properties =
+    record.properties ||
+    {};
+
+
+  const associations =
+    associationsByTicket.get(
+      String(
+        record.id
+      )
+    ) ||
+    {
+      results: []
+    };
+
+
+  const makelaarId =
+    getAssociatedContactIdByType(
+      associations,
+      ASSOCIATION_TYPE_MAKELAAR
+    );
+
+
+  const associatedPhotographerId =
+    getAssociatedContactIdByType(
+      associations,
+      ASSOCIATION_TYPE_FOTOGRAAF
+    );
+
+
+  const photographerId =
+    String(
+      properties.selected_photographer_id ||
+      associatedPhotographerId ||
+      ""
+    ).trim();
+
+
+  const makelaar =
+    makelaarId
+      ? contactsById.get(
+          String(
+            makelaarId
+          )
+        ) ||
+        null
+      : null;
+
+
+  const fotograaf =
+    photographerId
+      ? contactsById.get(
+          String(
+            photographerId
+          )
+        ) ||
+        null
+      : null;
+
+
+  const start =
+    normalizeEpoch(
+      properties.afspraak_start
+    );
+
+
+  const end =
+    normalizeEpoch(
+      properties.afspraak_einde
+    );
+
+
+  return {
+    id:
+      String(
+        record.id
+      ),
+
+    adres:
+      properties.adres ||
+      "",
+
+    diensten:
+      normalizeBookingServices(
+        properties.diensten
+      ),
+
+    afspraak_start:
+      start,
+
+    afspraak_einde:
+      end,
+
+    boekingscode:
+      properties.boekingscode ||
+      "",
+
+    woning_oppervlakte_m2:
+      properties.woning_oppervlakte_m2 ||
+      "",
+
+    opmerking_klant:
+      properties.opmerking_klant ||
+      "",
+
+    extra_opdracht:
+      String(
+        properties.extra_opdracht ||
+        ""
+      )
+        .trim()
+        .toLowerCase() ===
+      "true",
+
+    extra_opdracht_facturatie:
+      properties.extra_opdracht_facturatie ||
+      "",
+
+    download_link:
+      properties.download_link ||
+      "",
+
+    status:
+      getPlannerStatus(
+        properties.hs_pipeline_stage
+      ),
+
+    makelaar,
+
+    fotograaf,
+
+    huiseigenaar: {
+      naam:
+        properties.huiseigenaar_naam ||
+        "",
+
+      email:
+        properties.huiseigenaar_email ||
+        "",
+
+      telefoon:
+        properties.huiseigenaar_telefoon ||
+        ""
+    }
+  };
+}
+
+
+// ============================================
+// AGENDA RANGE
 // ============================================
 
 function normalizeAgendaRange(
@@ -3381,198 +3033,160 @@ function normalizeAgendaRange(
   rangeEnd
 ) {
 
-  const startMs =
+  const start =
     normalizeEpoch(
       rangeStart
     );
 
 
-  const endMs =
+  const end =
     normalizeEpoch(
       rangeEnd
     );
 
 
   if (
-    !startMs &&
-    !endMs
+    !start ||
+    !end ||
+    end <=
+      start
   ) {
 
     return {
-      startMs:
+      start:
         null,
 
-      endMs:
+      end:
         null
     };
   }
 
 
-  if (
-    !startMs ||
-    !endMs
-  ) {
-
-    throw new Error(
-      "Voor de agenda zijn zowel range_start als range_end verplicht."
-    );
-  }
-
-
-  if (
-    endMs <=
-    startMs
-  ) {
-
-    throw new Error(
-      "Agenda range_end moet na range_start liggen."
-    );
-  }
-
-
   return {
-    startMs,
-    endMs
+    start,
+    end
   };
 }
 
 
 // ============================================
-// PLANNER AGENDA RECORDS
+// AGENDA SEARCH
 // ============================================
 
 async function searchPlannerAgendaRecords(
-  rangeStart =
-    null,
-  rangeEnd =
-    null
+  rangeStart = null,
+  rangeEnd = null
 ) {
 
-  const {
-    startMs,
-    endMs
-  } =
+  const range =
     normalizeAgendaRange(
       rangeStart,
       rangeEnd
     );
 
 
-  const properties = [
-
-    "boekingscode",
-    "adres",
-    "diensten",
-
-    "selected_photographer_id",
-
-    "afspraak_start",
-    "afspraak_einde",
-
-    "opmerking_klant",
-
-    "woning_oppervlakte_m2",
-
-    "huiseigenaar_naam",
-    "huiseigenaar_email",
-    "huiseigenaar_telefoon",
-
-    "planner_reason",
-    "planner_note",
-    "planner_approved_at",
-
-    "hs_pipeline_stage",
-
-    "createdate"
-
-  ];
-
-
   const filters = [
+    {
+      propertyName:
+        "hs_pipeline",
 
+      operator:
+        "EQ",
+
+      value:
+        "0"
+    },
+
+    /*
+     * Cancelled hoeft niet als actieve
+     * agenda-boeking te worden getoond.
+     */
     {
       propertyName:
         "hs_pipeline_stage",
 
       operator:
-        "IN",
+        "NEQ",
 
-      values: [
+      value:
         String(
-          STAGE_REVIEW
-        ),
-        String(
-          STAGE_APPROVED
-        ),
-        String(
-          STAGE_OPNAMEDAG
-        ),
-        String(
-          STAGE_PAKKET_IN_BEHANDELING
-        ),
-        String(
-          STAGE_CLOSED
+          STAGE_CANCELLED
         )
-      ]
     }
-
   ];
 
 
   if (
-    startMs
+    range.start !==
+    null
   ) {
 
-    filters.push(
-      {
-        propertyName:
-          "afspraak_start",
+    filters.push({
+      propertyName:
+        "afspraak_start",
 
-        operator:
-          "GTE",
+      operator:
+        "GTE",
 
-        value:
-          String(
-            startMs
-          )
-      }
-    );
+      value:
+        String(
+          range.start
+        )
+    });
   }
 
 
   if (
-    endMs
+    range.end !==
+    null
   ) {
 
-    filters.push(
-      {
-        propertyName:
-          "afspraak_start",
+    filters.push({
+      propertyName:
+        "afspraak_start",
 
-        operator:
-          "LT",
+      operator:
+        "LT",
 
-        value:
-          String(
-            endMs
-          )
-      }
-    );
+      value:
+        String(
+          range.end
+        )
+    });
   }
 
 
-  const results =
-    [];
+  const properties = [
+    "adres",
+    "diensten",
+    "selected_photographer_id",
+    "afspraak_start",
+    "afspraak_einde",
+    "hs_pipeline",
+    "hs_pipeline_stage",
+    "boekingscode",
+    "woning_oppervlakte_m2",
+    "opmerking_klant",
+    "huiseigenaar_naam",
+    "huiseigenaar_email",
+    "huiseigenaar_telefoon",
+    "download_link",
+    "extra_opdracht",
+    "extra_opdracht_facturatie"
+  ];
 
 
   let after =
-    null;
+    0;
+
+
+  const records =
+    [];
 
 
   do {
 
     const body = {
-
       filterGroups: [
         {
           filters
@@ -3586,8 +3200,7 @@ async function searchPlannerAgendaRecords(
       ],
 
       limit:
-        100
-
+        200
     };
 
 
@@ -3608,7 +3221,7 @@ async function searchPlannerAgendaRecords(
       );
 
 
-    results.push(
+    records.push(
       ...(
         response.results ||
         []
@@ -3617,29 +3230,29 @@ async function searchPlannerAgendaRecords(
 
 
     after =
-      response.paging
-        ?.next
-        ?.after ||
-      null;
+      Number(
+        response.paging
+          ?.next
+          ?.after ||
+        0
+      );
 
   } while (
     after
   );
 
 
-  return results;
+  return records;
 }
 
 
 // ============================================
-// PLANNER AGENDA BOEKINGEN
+// AGENDA BOOKINGS
 // ============================================
 
 async function getPlannerAgendaBookings(
-  rangeStart =
-    null,
-  rangeEnd =
-    null
+  rangeStart = null,
+  rangeEnd = null
 ) {
 
   const records =
@@ -3649,50 +3262,16 @@ async function getPlannerAgendaBookings(
     );
 
 
-  const validRecords =
-    records.filter(
-      record => {
+  if (
+    !records.length
+  ) {
 
-        const properties =
-          record.properties ||
-          {};
-
-
-        const status =
-          getPlannerAgendaStatus(
-            properties
-              .hs_pipeline_stage
-          );
-
-
-        if (
-          !status
-        ) {
-
-          return false;
-        }
-
-
-        const appointmentStart =
-          normalizeEpoch(
-            properties
-              .afspraak_start
-          );
-
-
-        const appointmentEnd =
-          normalizeEpoch(
-            properties
-              .afspraak_einde
-          );
-
-
-        return Boolean(
-          appointmentStart &&
-          appointmentEnd
-        );
-      }
-    );
+    return {
+      bookings: [],
+      photographers: [],
+      makelaars: []
+    };
+  }
 
 
   const {
@@ -3700,211 +3279,44 @@ async function getPlannerAgendaBookings(
     contactsById
   } =
     await enrichPlannerRecords(
-      validRecords
+      records
     );
 
 
   const bookings =
-    validRecords.map(
-      record => {
-
-        const properties =
-          record.properties ||
-          {};
-
-
-        const status =
-          getPlannerAgendaStatus(
-            properties
-              .hs_pipeline_stage
-          );
-
-
-        const appointmentStart =
-          normalizeEpoch(
-            properties
-              .afspraak_start
-          );
-
-
-        const appointmentEnd =
-          normalizeEpoch(
-            properties
-              .afspraak_einde
-          );
-
-
-        const associations =
-          associationsByTicket.get(
-            String(
-              record.id
+    records
+      .map(
+        record =>
+          normalizePlannerBooking(
+            record,
+            associationsByTicket,
+            contactsById
+          )
+      )
+      .filter(
+        booking =>
+          Number.isFinite(
+            Number(
+              booking.afspraak_start
             )
-          ) || {
-            results:
-              []
-          };
+          ) &&
+          Number.isFinite(
+            Number(
+              booking.afspraak_einde
+            )
+          )
+      );
 
 
-        const makelaarId =
-          getAssociatedContactIdByType(
-            associations,
-            ASSOCIATION_TYPE_MAKELAAR
-          );
+  // =========================================
+  // FOTOGRAFEN UIT DE ZICHTBARE BOEKINGEN
+  // =========================================
+
+  const photographerMap =
+    new Map();
 
 
-        const associatedPhotographerId =
-          getAssociatedContactIdByType(
-            associations,
-            ASSOCIATION_TYPE_FOTOGRAAF
-          );
-
-
-        const photographerId =
-          String(
-            properties
-              .selected_photographer_id ||
-            associatedPhotographerId ||
-            ""
-          ).trim();
-
-
-        const makelaar =
-          makelaarId
-            ? contactsById.get(
-                String(
-                  makelaarId
-                )
-              ) ||
-              null
-            : null;
-
-
-        const fotograaf =
-          photographerId
-            ? contactsById.get(
-                photographerId
-              ) ||
-              null
-            : null;
-
-
-        return {
-
-          id:
-            String(
-              record.id
-            ),
-
-          boekingscode:
-            properties
-              .boekingscode ||
-            "",
-
-          adres:
-            properties
-              .adres ||
-            "",
-
-          diensten:
-            normalizePlannerServices(
-              properties
-                .diensten
-            ),
-
-          status,
-
-          afspraak_start:
-            appointmentStart,
-
-          afspraak_einde:
-            appointmentEnd,
-
-          makelaar,
-
-          fotograaf,
-
-          opmerking_klant:
-            properties
-              .opmerking_klant ||
-            "",
-
-          woning_oppervlakte_m2:
-            properties
-              .woning_oppervlakte_m2 ||
-            "",
-
-          huiseigenaar: {
-
-            naam:
-              properties
-                .huiseigenaar_naam ||
-              "",
-
-            email:
-              properties
-                .huiseigenaar_email ||
-              "",
-
-            telefoon:
-              properties
-                .huiseigenaar_telefoon ||
-              ""
-
-          },
-
-          planner: {
-
-            reason:
-              properties
-                .planner_reason ||
-              "",
-
-            note:
-              properties
-                .planner_note ||
-              "",
-
-            approved_at:
-              normalizeEpoch(
-                properties
-                  .planner_approved_at
-              )
-
-          },
-
-          created_at:
-            properties
-              .createdate ||
-            record.createdAt ||
-            ""
-
-        };
-      }
-    );
-
-
-  return bookings
-    .sort(
-      (
-        a,
-        b
-      ) =>
-        a.afspraak_start -
-        b.afspraak_start
-    );
-}
-
-
-// ============================================
-// UNIEKE CONTACTEN VOOR AGENDA
-// ============================================
-
-function getUniquePlannerAgendaContacts(
-  bookings,
-  propertyName
-) {
-
-  const map =
+  const makelaarMap =
     new Map();
 
 
@@ -3913,80 +3325,297 @@ function getUniquePlannerAgendaContacts(
       bookings
   ) {
 
-    const contact =
-      booking[
-        propertyName
-      ];
-
-
     if (
-      !contact ||
-      !contact.id
+      booking.fotograaf?.id
     ) {
 
-      continue;
-    }
-
-
-    if (
-      !map.has(
+      photographerMap.set(
         String(
-          contact.id
-        )
-      )
-    ) {
-
-      map.set(
-        String(
-          contact.id
+          booking.fotograaf.id
         ),
         {
           id:
             String(
-              contact.id
+              booking.fotograaf.id
             ),
 
           name:
-            contact.name ||
-            "",
+            booking.fotograaf.name ||
+            "Onbekend"
+        }
+      );
+    }
 
-          firstname:
-            contact.firstname ||
-            "",
 
-          lastname:
-            contact.lastname ||
-            "",
+    if (
+      booking.makelaar?.id
+    ) {
 
-          email:
-            contact.email ||
-            ""
+      makelaarMap.set(
+        String(
+          booking.makelaar.id
+        ),
+        {
+          id:
+            String(
+              booking.makelaar.id
+            ),
+
+          name:
+            booking.makelaar.name ||
+            "Onbekend"
         }
       );
     }
   }
 
 
-  return Array
-    .from(
-      map.values()
-    )
-    .sort(
-      (
-        a,
-        b
-      ) =>
-        String(
-          a.name
-        ).localeCompare(
+  const photographers =
+    [
+      ...photographerMap.values()
+    ]
+      .sort(
+        (
+          a,
+          b
+        ) =>
           String(
-            b.name
-          ),
-          "nl"
-        )
-    );
+            a.name
+          ).localeCompare(
+            String(
+              b.name
+            ),
+            "nl"
+          )
+      );
+
+
+  const makelaars =
+    [
+      ...makelaarMap.values()
+    ]
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          String(
+            a.name
+          ).localeCompare(
+            String(
+              b.name
+            ),
+            "nl"
+          )
+      );
+
+
+  return {
+    bookings,
+    photographers,
+    makelaars
+  };
 }
 
+
+// ============================================
+// PLANNER ROLE CHECK
+// ============================================
+
+async function validatePlannerContact(
+  contactId
+) {
+
+  if (
+    !contactId
+  ) {
+
+    return {
+      valid:
+        false,
+
+      error:
+        "Planner ontbreekt."
+    };
+  }
+
+
+  const contact =
+    await getContact(
+      contactId,
+      [
+        "firstname",
+        "lastname",
+        "email",
+        "portal_role"
+      ]
+    );
+
+
+  const role =
+    String(
+      contact.properties
+        ?.portal_role ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    role !==
+    "planner"
+  ) {
+
+    return {
+      valid:
+        false,
+
+      error:
+        "Geen toegang tot de planner."
+    };
+  }
+
+
+  return {
+    valid:
+      true,
+
+    contact
+  };
+}
+
+
+// ============================================
+// PLANNER AGENDA RESPONSE
+//
+// Wordt vanuit de GET-handler in deel 3
+// aangeroepen.
+// ============================================
+
+async function buildPlannerAgendaResponse({
+  contactId,
+  rangeStart,
+  rangeEnd,
+  photographerId
+}) {
+
+  const plannerValidation =
+    await validatePlannerContact(
+      contactId
+    );
+
+
+  if (
+    !plannerValidation.valid
+  ) {
+
+    return {
+      status:
+        403,
+
+      body: {
+        success:
+          false,
+
+        error:
+          plannerValidation.error
+      }
+    };
+  }
+
+
+  /*
+   * Eerst 1x de zichtbare agenda ophalen.
+   *
+   * Dit bevat al alle associations/contacten.
+   */
+
+  const agenda =
+    await getPlannerAgendaBookings(
+      rangeStart,
+      rangeEnd
+    );
+
+
+  let availabilityOverlay =
+    null;
+
+
+  let travelOverlay =
+    null;
+
+
+  const selectedPhotographerId =
+    String(
+      photographerId ||
+      ""
+    ).trim();
+
+
+  /*
+   * Alleen als de frontend om één specifieke
+   * fotograaf vraagt, berekenen we availability
+   * en travel.
+   *
+   * Bij "Alle fotografen" gebeurt dit dus NIET.
+   */
+
+  if (
+    selectedPhotographerId
+  ) {
+
+    availabilityOverlay =
+      await getPlannerAvailabilityOverlay(
+        selectedPhotographerId,
+        rangeStart,
+        rangeEnd
+      );
+
+
+    /*
+     * BELANGRIJK:
+     *
+     * agenda.bookings wordt hergebruikt.
+     *
+     * Er wordt hier dus NIET nogmaals
+     * getBookings() / ticket search gedaan.
+     */
+
+    travelOverlay =
+      await getPlannerTravelOverlay(
+        selectedPhotographerId,
+        agenda.bookings,
+        availabilityOverlay
+      );
+  }
+
+
+  return {
+    status:
+      200,
+
+    body: {
+      success:
+        true,
+
+      bookings:
+        agenda.bookings,
+
+      photographers:
+        agenda.photographers,
+
+      makelaars:
+        agenda.makelaars,
+
+      availability_overlay:
+        availabilityOverlay,
+
+      travel_overlay:
+        travelOverlay
+    }
+  };
+}
 
 // ============================================
 // API HANDLER
@@ -4003,7 +3632,6 @@ export default async function handler(
       res
     )
   ) {
-
     return;
   }
 
@@ -4047,9 +3675,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -4075,9 +3701,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -4101,9 +3725,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -4125,9 +3747,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              404
-            )
+            .status(404)
             .json({
               success:
                 false,
@@ -4149,15 +3769,18 @@ export default async function handler(
 
 
         if (
-          contact.properties
-            ?.portal_role !==
+          String(
+            contact.properties
+              ?.portal_role ||
+            ""
+          )
+            .trim()
+            .toLowerCase() !==
           "makelaar"
         ) {
 
           return res
-            .status(
-              403
-            )
+            .status(403)
             .json({
               success:
                 false,
@@ -4169,9 +3792,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -4203,9 +3824,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -4227,9 +3846,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              404
-            )
+            .status(404)
             .json({
               success:
                 false,
@@ -4255,15 +3872,18 @@ export default async function handler(
 
 
         if (
-          contact.properties
-            ?.portal_role !==
+          String(
+            contact.properties
+              ?.portal_role ||
+            ""
+          )
+            .trim()
+            .toLowerCase() !==
           "makelaar"
         ) {
 
           return res
-            .status(
-              403
-            )
+            .status(403)
             .json({
               success:
                 false,
@@ -4275,9 +3895,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -4333,9 +3951,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -4353,9 +3969,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -4381,9 +3995,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -4401,9 +4013,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -4414,12 +4024,12 @@ export default async function handler(
 
 
       // =======================================
-      // PLANNER BOEKINGEN
+      // PLANNER DASHBOARD
       // =======================================
 
       if (
         action ===
-        "planner-bookings"
+        "planner-dashboard"
       ) {
 
         if (
@@ -4427,9 +4037,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -4469,9 +4077,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              403
-            )
+            .status(403)
             .json({
               success:
                 false,
@@ -4516,9 +4122,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -4573,9 +4177,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -4586,227 +4188,39 @@ export default async function handler(
         }
 
 
-        const plannerContact =
-          await getContact(
-            contact_id,
-            [
-              "firstname",
-              "lastname",
-              "email",
-              "portal_role"
-            ]
-          );
+        const result =
+          await buildPlannerAgendaResponse({
 
+            contactId:
+              contact_id,
 
-        const plannerRole =
-          String(
-            plannerContact
-              .properties
-              ?.portal_role ||
-            ""
-          )
-            .trim()
-            .toLowerCase();
-
-
-        if (
-          plannerRole !==
-          "planner"
-        ) {
-
-          return res
-            .status(
-              403
-            )
-            .json({
-              success:
-                false,
-
-              error:
-                "Geen toegang tot Planner"
-            });
-        }
-
-
-        // =====================================
-        // STAP 1
-        //
-        // Boekingen en availability parallel.
-        // =====================================
-
-        const [
-          bookings,
-          availabilityOverlay
-        ] =
-          await Promise.all([
-
-            getPlannerAgendaBookings(
+            rangeStart:
               range_start ||
-                null,
+              null,
+
+            rangeEnd:
               range_end ||
-                null
-            ),
+              null,
 
-            photographer_id
-              ? getPlannerAvailabilityOverlay(
-                  photographer_id,
-                  range_start ||
-                    null,
-                  range_end ||
-                    null
-                )
-              : Promise.resolve(
-                  null
-                )
+            photographerId:
+              photographer_id ||
+              null
 
-          ]);
-
-
-        // =====================================
-        // STAP 2
-        //
-        // Alleen bij één fotograaf bouwen we
-        // de travel-cache.
-        //
-        // De gewone agenda heeft dus geen
-        // Google Routes overhead.
-        // =====================================
-
-        let travelOverlay =
-          null;
-
-
-        if (
-          photographer_id &&
-          availabilityOverlay
-        ) {
-
-          try {
-
-            travelOverlay =
-              await getPlannerTravelOverlay(
-                photographer_id,
-                range_start ||
-                  null,
-                range_end ||
-                  null,
-                availabilityOverlay
-              );
-
-          } catch (
-            error
-          ) {
-
-            /*
-             * Travel-cache is een optimalisatie.
-             *
-             * Als Google Routes hier fout gaat,
-             * mag de hele agenda NIET stukgaan.
-             *
-             * De definitieve backend-validatie
-             * bij planner-reschedule blijft
-             * namelijk gewoon actief.
-             */
-
-            console.error(
-              "PLANNER TRAVEL OVERLAY ERROR:",
-              error
-            );
-
-
-            travelOverlay =
-              null;
-          }
-        }
-
-
-        const photographers =
-          getUniquePlannerAgendaContacts(
-            bookings,
-            "fotograaf"
-          );
-
-
-        const makelaars =
-          getUniquePlannerAgendaContacts(
-            bookings,
-            "makelaar"
-          );
+          });
 
 
         return res
           .status(
-            200
+            result.status
           )
-          .json({
-
-            success:
-              true,
-
-            planner: {
-
-              id:
-                String(
-                  plannerContact.id
-                ),
-
-              firstname:
-                plannerContact
-                  .properties
-                  ?.firstname ||
-                "",
-
-              lastname:
-                plannerContact
-                  .properties
-                  ?.lastname ||
-                "",
-
-              email:
-                plannerContact
-                  .properties
-                  ?.email ||
-                ""
-
-            },
-
-            range: {
-
-              start:
-                range_start ||
-                null,
-
-              end:
-                range_end ||
-                null
-
-            },
-
-            selected_photographer_id:
-              photographer_id
-                ? String(
-                    photographer_id
-                  )
-                : null,
-
-            availability_overlay:
-              availabilityOverlay,
-
-            travel_overlay:
-              travelOverlay,
-
-            bookings,
-
-            photographers,
-
-            makelaars
-
-          });
+          .json(
+            result.body
+          );
       }
 
 
       // =======================================
-      // PLANNER BOEKING - TIJDELIJKE DEBUG
+      // PLANNER BOEKING - DEBUG
       // =======================================
 
       if (
@@ -4819,9 +4233,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -4918,9 +4330,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -4967,9 +4377,7 @@ export default async function handler(
 
 
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           success:
             false,
@@ -4980,8 +4388,7 @@ export default async function handler(
     }
 
 
-
-      // =========================================
+    // =========================================
     // POST
     // =========================================
 
@@ -4994,8 +4401,9 @@ export default async function handler(
         action,
         ticket_id,
         contact_id,
-        mode, 
-        
+
+        mode,
+
         email,
         firstname,
         lastname,
@@ -5035,9 +4443,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5077,9 +4483,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              403
-            )
+            .status(403)
             .json({
               success:
                 false,
@@ -5103,9 +4507,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5122,9 +4524,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5142,9 +4542,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -5197,9 +4595,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5239,9 +4635,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              403
-            )
+            .status(403)
             .json({
               success:
                 false,
@@ -5265,9 +4659,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5284,9 +4676,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5304,9 +4694,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -5359,9 +4747,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5383,9 +4769,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              404
-            )
+            .status(404)
             .json({
               success:
                 false,
@@ -5406,15 +4790,18 @@ export default async function handler(
 
 
         if (
-          contact.properties
-            ?.portal_role !==
+          String(
+            contact.properties
+              ?.portal_role ||
+            ""
+          )
+            .trim()
+            .toLowerCase() !==
           "makelaar"
         ) {
 
           return res
-            .status(
-              403
-            )
+            .status(403)
             .json({
               success:
                 false,
@@ -5491,9 +4878,7 @@ export default async function handler(
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -5505,20 +4890,248 @@ export default async function handler(
 
 
       // =======================================
-      // PLANNER BOEKING VERSLEPEN
+      // PLANNER UPDATE
+      // =======================================
+
+      if (
+        action ===
+        "planner-update"
+      ) {
+
+        if (
+          !ticket_id
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success:
+                false,
+
+              error:
+                "ticket_id is verplicht"
+            });
+        }
+
+
+        const properties =
+          {};
+
+
+        if (
+          address !==
+          undefined
+        ) {
+
+          properties.adres =
+            address ||
+            "";
+        }
+
+
+        if (
+          diensten !==
+          undefined
+        ) {
+
+          properties.diensten =
+            Array.isArray(
+              diensten
+            )
+              ? diensten.join(";")
+              : diensten ||
+                "";
+        }
+
+
+        if (
+          photographer_id !==
+          undefined
+        ) {
+
+          properties.selected_photographer_id =
+            String(
+              photographer_id ||
+              ""
+            );
+        }
+
+
+        if (
+          planner_reason !==
+          undefined
+        ) {
+
+          properties.planner_reason =
+            planner_reason ||
+            "";
+        }
+
+
+        if (
+          planner_note !==
+          undefined
+        ) {
+
+          properties.planner_note =
+            planner_note ||
+            "";
+        }
+
+
+        if (
+          woning_oppervlakte_m2 !==
+          undefined
+        ) {
+
+          properties.woning_oppervlakte_m2 =
+            woning_oppervlakte_m2 !==
+              null &&
+            woning_oppervlakte_m2 !==
+              ""
+              ? String(
+                  woning_oppervlakte_m2
+                )
+              : "";
+        }
+
+
+        if (
+          huiseigenaar_naam !==
+          undefined
+        ) {
+
+          properties.huiseigenaar_naam =
+            huiseigenaar_naam ||
+            "";
+        }
+
+
+        if (
+          huiseigenaar_email !==
+          undefined
+        ) {
+
+          properties.huiseigenaar_email =
+            huiseigenaar_email ||
+            "";
+        }
+
+
+        if (
+          huiseigenaar_telefoon !==
+          undefined
+        ) {
+
+          properties.huiseigenaar_telefoon =
+            huiseigenaar_telefoon ||
+            "";
+        }
+
+
+        if (
+          start !==
+            undefined ||
+          end !==
+            undefined
+        ) {
+
+          const currentTicket =
+            await getTicket(
+              ticket_id,
+              [
+                "afspraak_start",
+                "afspraak_einde"
+              ]
+            );
+
+
+          const finalStart =
+            start !==
+            undefined
+              ? start
+              : currentTicket
+                  .properties
+                  ?.afspraak_start;
+
+
+          const finalEnd =
+            end !==
+            undefined
+              ? end
+              : currentTicket
+                  .properties
+                  ?.afspraak_einde;
+
+
+          const validation =
+            validatePlannerTimes(
+              finalStart,
+              finalEnd
+            );
+
+
+          if (
+            !validation.valid
+          ) {
+
+            return res
+              .status(400)
+              .json({
+                success:
+                  false,
+
+                error:
+                  validation.error
+              });
+          }
+
+
+          properties.afspraak_start =
+            String(
+              validation.startMs
+            );
+
+
+          properties.afspraak_einde =
+            String(
+              validation.endMs
+            );
+        }
+
+
+        properties.hs_pipeline_stage =
+          STAGE_REVIEW;
+
+
+        const updated =
+          await updateTicket(
+            ticket_id,
+            properties
+          );
+
+
+        return res
+          .status(200)
+          .json({
+            success:
+              true,
+
+            ticket:
+              updated
+          });
+      }
+
+
+      // =======================================
+      // PLANNER RESCHEDULE
       //
-      // Backend blijft definitief controleren:
+      // move:
+      // duur blijft gelijk
       //
-      // - planner toegang
-      // - fotograaf
-      // - duur
-      // - werktijden
-      // - blokkades
-      // - overlap
-      // - reistijd
-      //
-      // De frontend gaat dezelfde controles
-      // waar mogelijk AL VOOR DE DROP uitvoeren.
+      // resize:
+      // start blijft gelijk
+      // eindtijd verandert
       // =======================================
 
       if (
@@ -5531,9 +5144,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5549,9 +5160,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5561,6 +5170,10 @@ export default async function handler(
             });
         }
 
+
+        // =====================================
+        // PLANNER CONTROLEREN
+        // =====================================
 
         const plannerContact =
           await getContact(
@@ -5591,9 +5204,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              403
-            )
+            .status(403)
             .json({
               success:
                 false,
@@ -5603,6 +5214,10 @@ export default async function handler(
             });
         }
 
+
+        // =====================================
+        // BOEKING + ASSOCIATIES
+        // =====================================
 
         const [
           currentTicket,
@@ -5655,9 +5270,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5688,9 +5301,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5713,9 +5324,7 @@ export default async function handler(
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5726,106 +5335,108 @@ export default async function handler(
         }
 
 
+        const requestedMode =
+          String(
+            mode ||
+            "move"
+          )
+            .trim()
+            .toLowerCase();
+
+
+        const rescheduleMode =
+          requestedMode ===
+          "resize"
+            ? "resize"
+            : "move";
+
+
         const currentDuration =
-  currentEnd -
-  currentStart;
+          currentEnd -
+          currentStart;
 
 
-const newDuration =
-  timeValidation.endMs -
-  timeValidation.startMs;
+        const newDuration =
+          timeValidation.endMs -
+          timeValidation.startMs;
 
 
-const rescheduleMode =
-  mode ===
-  "resize"
-    ? "resize"
-    : "move";
+        // =====================================
+        // MOVE
+        // =====================================
+
+        if (
+          rescheduleMode ===
+          "move" &&
+          currentDuration !==
+          newDuration
+        ) {
+
+          return res
+            .status(400)
+            .json({
+              success:
+                false,
+
+              error:
+                "Bij verslepen moet de duur van de boeking gelijk blijven."
+            });
+        }
 
 
-// =======================================
-// NORMAAL VERSLEPEN
-//
-// Duur moet gelijk blijven.
-// =======================================
+        // =====================================
+        // RESIZE
+        // =====================================
 
-if (
-  rescheduleMode ===
-    "move" &&
-  currentDuration !==
-    newDuration
-) {
+        if (
+          rescheduleMode ===
+          "resize"
+        ) {
 
-  return res
-    .status(
-      400
-    )
-    .json({
-      success:
-        false,
+          if (
+            currentStart !==
+            timeValidation.startMs
+          ) {
 
-      error:
-        "Bij verslepen moet de duur van de boeking gelijk blijven."
-    });
-}
+            return res
+              .status(400)
+              .json({
+                success:
+                  false,
 
-
-// =======================================
-// RESIZE
-//
-// Starttijd moet gelijk blijven.
-// Alleen eindtijd verandert.
-// =======================================
-
-if (
-  rescheduleMode ===
-    "resize"
-) {
-
-  if (
-    currentStart !==
-    timeValidation.startMs
-  ) {
-
-    return res
-      .status(
-        400
-      )
-      .json({
-        success:
-          false,
-
-        error:
-          "Bij het aanpassen van de duur mag de begintijd niet veranderen."
-      });
-  }
+                error:
+                  "Bij het aanpassen van de duur mag de begintijd niet veranderen."
+              });
+          }
 
 
-  const minimumDurationMs =
-    15 *
-    60 *
-    1000;
+          const minimumDuration =
+            15 *
+            60 *
+            1000;
 
 
-  if (
-    newDuration <
-    minimumDurationMs
-  ) {
+          if (
+            newDuration <
+            minimumDuration
+          ) {
 
-    return res
-      .status(
-        400
-      )
-      .json({
-        success:
-          false,
+            return res
+              .status(400)
+              .json({
+                success:
+                  false,
 
-        error:
-          "Een boeking moet minimaal 15 minuten duren."
-      });
-  }
-}
+                error:
+                  "Een boeking moet minimaal 15 minuten duren."
+              });
+          }
+        }
 
+
+        // =====================================
+        // NIETS GEWIJZIGD
+        // =====================================
 
         if (
           currentStart ===
@@ -5835,9 +5446,7 @@ if (
         ) {
 
           return res
-            .status(
-              200
-            )
+            .status(200)
             .json({
 
               success:
@@ -5847,13 +5456,22 @@ if (
                 false,
 
               unchanged:
-                true
+                true,
+
+              mode:
+                rescheduleMode,
+
+              new_start:
+                currentStart,
+
+              new_end:
+                currentEnd
 
             });
         }
 
 
-        const address =
+        const bookingAddress =
           String(
             currentProperties
               .adres ||
@@ -5862,13 +5480,11 @@ if (
 
 
         if (
-          !address
+          !bookingAddress
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -5879,6 +5495,10 @@ if (
         }
 
 
+        // =====================================
+        // DEFINITIEVE BACKEND VALIDATIE
+        // =====================================
+
         const plannerValidation =
           await validatePlannerBooking({
 
@@ -5888,7 +5508,8 @@ if (
             photographerId:
               currentPhotographerId,
 
-            address,
+            address:
+              bookingAddress,
 
             startMs:
               timeValidation.startMs,
@@ -5904,9 +5525,7 @@ if (
         ) {
 
           return res
-            .status(
-              409
-            )
+            .status(409)
             .json({
 
               success:
@@ -5915,12 +5534,19 @@ if (
               validation_failed:
                 true,
 
+              mode:
+                rescheduleMode,
+
               error:
                 plannerValidation.error
 
             });
         }
 
+
+        // =====================================
+        // OPSLAAN
+        // =====================================
 
         const updated =
           await updateTicket(
@@ -5942,9 +5568,7 @@ if (
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -5952,6 +5576,9 @@ if (
 
             rescheduled:
               true,
+
+            mode:
+              rescheduleMode,
 
             old_start:
               currentStart,
@@ -5976,7 +5603,7 @@ if (
 
 
       // =======================================
-      // PLANNER BOEKING GOEDKEUREN
+      // PLANNER GOEDKEUREN
       // =======================================
 
       if (
@@ -5989,9 +5616,7 @@ if (
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -6054,9 +5679,7 @@ if (
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -6072,9 +5695,7 @@ if (
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -6097,9 +5718,7 @@ if (
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -6138,9 +5757,7 @@ if (
         ) {
 
           return res
-            .status(
-              409
-            )
+            .status(409)
             .json({
 
               success:
@@ -6218,9 +5835,7 @@ if (
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -6253,9 +5868,7 @@ if (
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -6274,9 +5887,7 @@ if (
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -6309,9 +5920,7 @@ if (
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
 
             success:
@@ -6337,9 +5946,7 @@ if (
       ) {
 
         return res
-          .status(
-            400
-          )
+          .status(400)
           .json({
             success:
               false,
@@ -6377,9 +5984,7 @@ if (
       ) {
 
         return res
-          .status(
-            403
-          )
+          .status(403)
           .json({
             success:
               false,
@@ -6410,9 +6015,7 @@ if (
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -6447,9 +6050,7 @@ if (
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -6477,9 +6078,7 @@ if (
         ) {
 
           return res
-            .status(
-              400
-            )
+            .status(400)
             .json({
               success:
                 false,
@@ -6560,9 +6159,7 @@ if (
 
 
         return res
-          .status(
-            200
-          )
+          .status(200)
           .json({
             success:
               true,
@@ -6574,9 +6171,7 @@ if (
 
 
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           success:
             false,
@@ -6588,13 +6183,11 @@ if (
 
 
     // =========================================
-    // METHOD NOT ALLOWED
+    // METHOD NIET TOEGESTAAN
     // =========================================
 
     return res
-      .status(
-        405
-      )
+      .status(405)
       .json({
         success:
           false,
@@ -6615,15 +6208,14 @@ if (
 
 
     return res
-      .status(
-        500
-      )
+      .status(500)
       .json({
         success:
           false,
 
         error:
-          error.message
+          error.message ||
+          "Interne serverfout"
       });
   }
 }
