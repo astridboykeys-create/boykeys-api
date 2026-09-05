@@ -70,7 +70,9 @@ function normalizeEpoch(
 
 
   const numeric =
-    Number(value);
+    Number(
+      value
+    );
 
 
   if (
@@ -86,7 +88,9 @@ function normalizeEpoch(
 
 
   const date =
-    new Date(value);
+    new Date(
+      value
+    );
 
 
   if (
@@ -137,7 +141,8 @@ function validatePlannerTimes(
 
 
   if (
-    endMs <= startMs
+    endMs <=
+    startMs
   ) {
 
     return {
@@ -159,7 +164,7 @@ function validatePlannerTimes(
 
 
 // ============================================
-// AMSTERDAM DATUM/TIJD
+// AMSTERDAM DATUM / TIJD
 // ============================================
 
 function getAmsterdamDate(
@@ -167,7 +172,9 @@ function getAmsterdamDate(
 ) {
 
   const date =
-    new Date(value);
+    new Date(
+      value
+    );
 
 
   if (
@@ -196,7 +203,9 @@ function getAmsterdamDate(
       timeZone:
         "Europe/Amsterdam"
     }
-  ).format(date);
+  ).format(
+    date
+  );
 
 }
 
@@ -206,7 +215,9 @@ function getAmsterdamTime(
 ) {
 
   const date =
-    new Date(value);
+    new Date(
+      value
+    );
 
 
   if (
@@ -283,7 +294,9 @@ function getDayKey(
   ] =
     dateString
       .split("-")
-      .map(Number);
+      .map(
+        Number
+      );
 
 
   const date =
@@ -348,7 +361,8 @@ function getTimeZoneOffsetMs(
 
 
   for (
-    const part of parts
+    const part of
+      parts
   ) {
 
     if (
@@ -399,7 +413,9 @@ function createAmsterdamDate(
   ] =
     dateString
       .split("-")
-      .map(Number);
+      .map(
+        Number
+      );
 
 
   const [
@@ -408,7 +424,9 @@ function createAmsterdamDate(
   ] =
     timeString
       .split(":")
-      .map(Number);
+      .map(
+        Number
+      );
 
 
   const naiveUtc =
@@ -476,7 +494,9 @@ function normalizeRepeatDays(
   value
 ) {
 
-  if (!value) {
+  if (
+    !value
+  ) {
     return [];
   }
 
@@ -500,7 +520,9 @@ function normalizeRepeatDays(
       value =>
         value.trim()
     )
-    .filter(Boolean);
+    .filter(
+      Boolean
+    );
 
 }
 
@@ -522,7 +544,8 @@ function expandBlocksForDate(
 
   for (
     const block of
-      blocks || []
+      blocks ||
+      []
   ) {
 
     const repeatType =
@@ -710,7 +733,8 @@ function ticketToBooking(
       ),
 
     adres:
-      p.adres || ""
+      p.adres ||
+      ""
 
   };
 
@@ -725,8 +749,10 @@ function hasOverlap(
 ) {
 
   return (
-    start1 < end2 &&
-    end1 > start2
+    start1 <
+      end2 &&
+    end1 >
+      start2
   );
 
 }
@@ -736,11 +762,16 @@ function parseHomeLocation(
   value
 ) {
 
-  if (!value) {
+  if (
+    !value
+  ) {
 
     return {
-      latitude: null,
-      longitude: null
+      latitude:
+        null,
+
+      longitude:
+        null
     };
 
   }
@@ -754,7 +785,9 @@ function parseHomeLocation(
       value
     )
       .split(",")
-      .map(Number);
+      .map(
+        Number
+      );
 
 
   if (
@@ -767,8 +800,11 @@ function parseHomeLocation(
   ) {
 
     return {
-      latitude: null,
-      longitude: null
+      latitude:
+        null,
+
+      longitude:
+        null
     };
 
   }
@@ -832,7 +868,9 @@ async function validatePlannerBooking({
   ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         "De geselecteerde contactpersoon is geen fotograaf."
     };
@@ -851,7 +889,8 @@ async function validatePlannerBooking({
     Number(
       photographer.properties
         ?.max_reistijd_minuten
-    ) || 30;
+    ) ||
+    30;
 
 
   const [
@@ -890,11 +929,14 @@ async function validatePlannerBooking({
 
   if (
     !workingDay ||
-    workingDay.enabled !== true
+    workingDay.enabled !==
+      true
   ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         "De fotograaf werkt niet op deze dag."
     };
@@ -908,7 +950,9 @@ async function validatePlannerBooking({
   ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         "De werktijden van de fotograaf zijn niet volledig ingesteld."
     };
@@ -938,7 +982,9 @@ async function validatePlannerBooking({
   ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         `De aangepaste afspraak valt buiten de werktijden (${workingDay.start} - ${workingDay.end}).`
     };
@@ -980,7 +1026,9 @@ async function validatePlannerBooking({
     ) {
 
       return {
-        valid: false,
+        valid:
+          false,
+
         error:
           block.reason
             ? `De fotograaf heeft een blokkade: ${block.reason}`
@@ -997,7 +1045,6 @@ async function validatePlannerBooking({
       bookingsResponse.results ||
       []
     )
-
       .filter(
         ticket =>
           String(
@@ -1007,13 +1054,12 @@ async function validatePlannerBooking({
             ticketId
           )
       )
-
       .map(
         ticketToBooking
       )
-
-      .filter(Boolean)
-
+      .filter(
+        Boolean
+      )
       .filter(
         booking =>
           getAmsterdamDate(
@@ -1021,9 +1067,11 @@ async function validatePlannerBooking({
           ) ===
           selectedDate
       )
-
       .sort(
-        (a, b) =>
+        (
+          a,
+          b
+        ) =>
           a.start.getTime() -
           b.start.getTime()
       );
@@ -1044,7 +1092,9 @@ async function validatePlannerBooking({
     ) {
 
       return {
-        valid: false,
+        valid:
+          false,
+
         error:
           "De aangepaste tijd overlapt met een andere boeking."
       };
@@ -1107,10 +1157,14 @@ async function validatePlannerBooking({
   }
 
 
-  if (!address) {
+  if (
+    !address
+  ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         "De boeking heeft geen adres."
     };
@@ -1141,7 +1195,9 @@ async function validatePlannerBooking({
     ) {
 
       return {
-        valid: false,
+        valid:
+          false,
+
         error:
           "Het adres van de vorige afspraak ontbreekt."
       };
@@ -1182,7 +1238,9 @@ async function validatePlannerBooking({
     ) {
 
       return {
-        valid: false,
+        valid:
+          false,
+
         error:
           `Onvoldoende reistijd vanaf de vorige afspraak. Minimaal ${incomingTravel.travel_minutes} minuten reistijd nodig.`
       };
@@ -1192,12 +1250,16 @@ async function validatePlannerBooking({
   } else {
 
     if (
-      home.latitude === null ||
-      home.longitude === null
+      home.latitude ===
+        null ||
+      home.longitude ===
+        null
     ) {
 
       return {
-        valid: false,
+        valid:
+          false,
+
         error:
           "De thuislocatie van de fotograaf ontbreekt."
       };
@@ -1222,7 +1284,9 @@ async function validatePlannerBooking({
   ) {
 
     return {
-      valid: false,
+      valid:
+        false,
+
       error:
         `De reistijd naar deze afspraak is ${incomingTravel.travel_minutes} minuten. De fotograaf heeft maximaal ${maxTravel} minuten ingesteld.`
     };
@@ -1243,7 +1307,9 @@ async function validatePlannerBooking({
     ) {
 
       return {
-        valid: false,
+        valid:
+          false,
+
         error:
           "Het adres van de volgende afspraak ontbreekt."
       };
@@ -1280,7 +1346,9 @@ async function validatePlannerBooking({
     ) {
 
       return {
-        valid: false,
+        valid:
+          false,
+
         error:
           `Onvoldoende reistijd naar de volgende afspraak. Er is ${travelToNext.travel_minutes} minuten reistijd nodig.`
       };
@@ -1292,7 +1360,8 @@ async function validatePlannerBooking({
 
   return {
 
-    valid: true,
+    valid:
+      true,
 
     travel: {
 
@@ -1342,7 +1411,9 @@ function normalizePlannerServices(
   value
 ) {
 
-  if (!value) {
+  if (
+    !value
+  ) {
     return [];
   }
 
@@ -1360,7 +1431,9 @@ function normalizePlannerServices(
             item
           ).trim()
       )
-      .filter(Boolean);
+      .filter(
+        Boolean
+      );
 
   }
 
@@ -1373,7 +1446,9 @@ function normalizePlannerServices(
       item =>
         item.trim()
     )
-    .filter(Boolean);
+    .filter(
+      Boolean
+    );
 
 }
 
@@ -1524,7 +1599,9 @@ function getContactDisplayName(
   contact
 ) {
 
-  if (!contact) {
+  if (
+    !contact
+  ) {
     return "";
   }
 
@@ -1539,7 +1616,9 @@ function getContactDisplayName(
       properties.firstname,
       properties.lastname
     ]
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
       .join(" ")
       .trim();
 
@@ -1558,7 +1637,9 @@ async function getPlannerContact(
   contactId
 ) {
 
-  if (!contactId) {
+  if (
+    !contactId
+  ) {
     return null;
   }
 
@@ -1633,99 +1714,47 @@ async function getPlannerContact(
 
 }
 
+
 // ============================================
-// CONCURRENTIE HELPER
-//
-// We blijven bij de bestaande bewezen
-// HubSpot endpoints.
-//
-// Geen batch-association endpoint.
+// PLANNER BATCH HELPERS
 // ============================================
 
-async function mapWithConcurrency(
+function chunkArray(
   items,
-  limit,
-  worker
+  size =
+    1000
 ) {
 
-  const results =
-    new Array(
-      items.length
+  const chunks =
+    [];
+
+
+  for (
+    let index = 0;
+    index <
+      items.length;
+    index +=
+      size
+  ) {
+
+    chunks.push(
+      items.slice(
+        index,
+        index +
+          size
+      )
     );
-
-
-  let nextIndex =
-    0;
-
-
-  async function runner() {
-
-    while (
-      true
-    ) {
-
-      const currentIndex =
-        nextIndex;
-
-
-      nextIndex +=
-        1;
-
-
-      if (
-        currentIndex >=
-        items.length
-      ) {
-        return;
-      }
-
-
-      results[
-        currentIndex
-      ] =
-        await worker(
-          items[
-            currentIndex
-          ],
-          currentIndex
-        );
-
-    }
 
   }
 
 
-  const runnerCount =
-    Math.min(
-      Math.max(
-        Number(
-          limit
-        ) || 1,
-        1
-      ),
-      items.length
-    );
-
-
-  await Promise.all(
-    Array.from(
-      {
-        length:
-          runnerCount
-      },
-      () =>
-        runner()
-    )
-  );
-
-
-  return results;
+  return chunks;
 
 }
 
 
 // ============================================
-// ASSOCIATIES GELIJKTIJDIG LADEN
+// BATCH ASSOCIATIONS
 // ============================================
 
 async function loadPlannerAssociations(
@@ -1736,51 +1765,128 @@ async function loadPlannerAssociations(
     new Map();
 
 
-  await mapWithConcurrency(
-    records,
-    5,
-    async record => {
+  const ticketIds =
+    [
+      ...new Set(
+        (
+          records ||
+          []
+        )
+          .map(
+            record =>
+              String(
+                record?.id ||
+                ""
+              ).trim()
+          )
+          .filter(
+            Boolean
+          )
+      )
+    ];
 
-      try {
 
-        const associations =
-          await getTicketAssociations(
-            record.id,
-            "contacts"
-          );
+  if (
+    !ticketIds.length
+  ) {
+
+    return associationsByTicket;
+
+  }
 
 
-        associationsByTicket.set(
-          String(
-            record.id
-          ),
-          associations
-        );
+  const chunks =
+    chunkArray(
+      ticketIds,
+      1000
+    );
 
-      } catch (
-        error
+
+  for (
+    const ticketIdChunk of
+      chunks
+  ) {
+
+    const response =
+      await hubspotRequest(
+        "/crm/v4/associations/tickets/contacts/batch/read",
+        "POST",
+        {
+          inputs:
+            ticketIdChunk.map(
+              id => ({
+                id
+              })
+            )
+        }
+      );
+
+
+    for (
+      const result of
+        response.results ||
+        []
+    ) {
+
+      const ticketId =
+        String(
+          result.from?.id ||
+          result.fromObjectId ||
+          result.id ||
+          ""
+        ).trim();
+
+
+      if (
+        !ticketId
       ) {
 
-        console.error(
-          `Associaties voor boeking ${record.id} konden niet worden geladen:`,
-          error
-        );
-
-
-        associationsByTicket.set(
-          String(
-            record.id
-          ),
-          {
-            results:
-              []
-          }
-        );
+        continue;
 
       }
 
+
+      const associations =
+        result.to ||
+        result.results ||
+        [];
+
+
+      associationsByTicket.set(
+        ticketId,
+        {
+          results:
+            associations
+        }
+      );
+
     }
-  );
+
+  }
+
+
+  for (
+    const ticketId of
+      ticketIds
+  ) {
+
+    if (
+      !associationsByTicket.has(
+        ticketId
+      )
+    ) {
+
+      associationsByTicket.set(
+        ticketId,
+        {
+          results:
+            []
+        }
+      );
+
+    }
+
+  }
 
 
   return associationsByTicket;
@@ -1789,7 +1895,67 @@ async function loadPlannerAssociations(
 
 
 // ============================================
-// CONTACTEN ÉÉN KEER LADEN
+// CONTACT RECORD NORMALISEREN
+// ============================================
+
+function plannerContactFromRecord(
+  contact
+) {
+
+  if (
+    !contact ||
+    !contact.id
+  ) {
+
+    return null;
+
+  }
+
+
+  return {
+
+    id:
+      String(
+        contact.id
+      ),
+
+    name:
+      getContactDisplayName(
+        contact
+      ),
+
+    firstname:
+      contact.properties
+        ?.firstname ||
+      "",
+
+    lastname:
+      contact.properties
+        ?.lastname ||
+      "",
+
+    email:
+      contact.properties
+        ?.email ||
+      "",
+
+    company:
+      contact.properties
+        ?.company ||
+      "",
+
+    role:
+      contact.properties
+        ?.portal_role ||
+      ""
+
+  };
+
+}
+
+
+// ============================================
+// BATCH CONTACTEN
 // ============================================
 
 async function loadPlannerContacts(
@@ -1803,7 +1969,10 @@ async function loadPlannerContacts(
   const uniqueIds =
     [
       ...new Set(
-        (contactIds || [])
+        (
+          contactIds ||
+          []
+        )
           .map(
             id =>
               String(
@@ -1811,37 +1980,90 @@ async function loadPlannerContacts(
                 ""
               ).trim()
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       )
     ];
 
 
-  await mapWithConcurrency(
-    uniqueIds,
-    5,
-    async contactId => {
+  if (
+    !uniqueIds.length
+  ) {
 
-      const contact =
-        await getPlannerContact(
-          contactId
+    return contactsById;
+
+  }
+
+
+  const chunks =
+    chunkArray(
+      uniqueIds,
+      100
+    );
+
+
+  for (
+    const contactIdChunk of
+      chunks
+  ) {
+
+    const response =
+      await hubspotRequest(
+        "/crm/v3/objects/contacts/batch/read",
+        "POST",
+        {
+
+          properties: [
+            "firstname",
+            "lastname",
+            "email",
+            "company",
+            "portal_role"
+          ],
+
+          inputs:
+            contactIdChunk.map(
+              id => ({
+                id
+              })
+            )
+
+        }
+      );
+
+
+    for (
+      const contact of
+        response.results ||
+        []
+    ) {
+
+      const normalizedContact =
+        plannerContactFromRecord(
+          contact
         );
 
 
       if (
-        contact?.id
+        !normalizedContact
       ) {
 
-        contactsById.set(
-          String(
-            contact.id
-          ),
-          contact
-        );
+        continue;
 
       }
 
+
+      contactsById.set(
+        String(
+          normalizedContact.id
+        ),
+        normalizedContact
+      );
+
     }
-  );
+
+  }
 
 
   return contactsById;
@@ -1856,6 +2078,24 @@ async function loadPlannerContacts(
 async function enrichPlannerRecords(
   records
 ) {
+
+  if (
+    !records ||
+    !records.length
+  ) {
+
+    return {
+
+      associationsByTicket:
+        new Map(),
+
+      contactsById:
+        new Map()
+
+    };
+
+  }
+
 
   const associationsByTicket =
     await loadPlannerAssociations(
@@ -1951,7 +2191,6 @@ async function enrichPlannerRecords(
   };
 
 }
-
 
 // ============================================
 // PLANNER DASHBOARD RECORDS
@@ -2278,7 +2517,9 @@ async function getPlannerBookings() {
 
 
   return bookings
-    .filter(Boolean)
+    .filter(
+      Boolean
+    )
     .sort(
       (
         a,
@@ -2487,17 +2728,13 @@ function normalizeAgendaRange(
 
 // ============================================
 // PLANNER AGENDA RECORDS
-//
-// Als range_start/range_end worden meegestuurd,
-// filtert HubSpot al vóórdat wij associations
-// en contacten gaan laden.
-//
-// Dit is de belangrijkste snelheidswinst.
 // ============================================
 
 async function searchPlannerAgendaRecords(
-  rangeStart = null,
-  rangeEnd = null
+  rangeStart =
+    null,
+  rangeEnd =
+    null
 ) {
 
   const {
@@ -2692,8 +2929,10 @@ async function searchPlannerAgendaRecords(
 // ============================================
 
 async function getPlannerAgendaBookings(
-  rangeStart = null,
-  rangeEnd = null
+  rangeStart =
+    null,
+  rangeEnd =
+    null
 ) {
 
   const records =
@@ -3049,6 +3288,7 @@ function getUniquePlannerAgendaContacts(
 
 }
 
+
 // ============================================
 // API HANDLER
 // ============================================
@@ -3085,8 +3325,6 @@ export default async function handler(
         contact_id,
         ticket_id,
         email,
-
-        // Agenda datumrange
         range_start,
         range_end
       } =
@@ -3109,9 +3347,13 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
+            success:
+              true,
+
             labels:
               result.results ||
               []
@@ -3134,9 +3376,13 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
+            success:
+              true,
+
             services
           });
 
@@ -3157,9 +3403,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "email is verplicht"
             });
@@ -3178,9 +3428,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(404)
+            .status(
+              404
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Contact niet gevonden"
             });
@@ -3205,9 +3459,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(403)
+            .status(
+              403
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Dit contact is geen makelaar"
             });
@@ -3216,7 +3474,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -3249,9 +3509,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "email is verplicht"
             });
@@ -3270,9 +3534,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(404)
+            .status(
+              404
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Contact niet gevonden"
             });
@@ -3301,9 +3569,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(403)
+            .status(
+              403
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Dit contact is geen makelaar"
             });
@@ -3312,7 +3584,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -3369,9 +3643,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "photographer_id is verplicht"
             });
@@ -3386,9 +3664,13 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
+            success:
+              true,
+
             jobs:
               jobs.results ||
               []
@@ -3411,9 +3693,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "contact_id is verplicht"
             });
@@ -3428,9 +3714,13 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
+            success:
+              true,
+
             orders
           });
 
@@ -3451,9 +3741,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "contact_id is verplicht"
             });
@@ -3490,9 +3784,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(403)
+            .status(
+              403
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen toegang tot Planner"
             });
@@ -3534,7 +3832,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -3578,12 +3878,6 @@ export default async function handler(
 
       // =======================================
       // PLANNER AGENDA
-      //
-      // range_start / range_end zijn optioneel.
-      //
-      // Zodra frontend deze meestuurt,
-      // filteren we in HubSpot vóórdat we
-      // associations/contacten laden.
       // =======================================
 
       if (
@@ -3596,9 +3890,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "contact_id is verplicht"
             });
@@ -3635,9 +3933,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(403)
+            .status(
+              403
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen toegang tot Planner"
             });
@@ -3647,8 +3949,10 @@ export default async function handler(
 
         const bookings =
           await getPlannerAgendaBookings(
-            range_start || null,
-            range_end || null
+            range_start ||
+              null,
+            range_end ||
+              null
           );
 
 
@@ -3667,7 +3971,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -3723,7 +4029,7 @@ export default async function handler(
       }
 
 
-           // =======================================
+      // =======================================
       // PLANNER BOEKING - TIJDELIJKE DEBUG
       // =======================================
 
@@ -3737,9 +4043,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "ticket_id is verplicht"
             });
@@ -3833,7 +4143,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -3881,15 +4193,18 @@ export default async function handler(
 
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
-          success: false,
+          success:
+            false,
+
           error:
             "Onbekende actie"
         });
 
     }
-
 
     // =========================================
     // POST
@@ -3944,9 +4259,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "contact_id is verplicht"
             });
@@ -3983,9 +4302,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(403)
+            .status(
+              403
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen toegang tot Planner"
             });
@@ -4006,9 +4329,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen importregels ontvangen"
             });
@@ -4017,13 +4344,18 @@ export default async function handler(
 
 
         if (
-          rows.length > 1000
+          rows.length >
+          1000
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Maximaal 1000 boekingen per import"
             });
@@ -4038,7 +4370,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -4092,9 +4426,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "contact_id is verplicht"
             });
@@ -4131,9 +4469,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(403)
+            .status(
+              403
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen toegang tot Planner"
             });
@@ -4154,9 +4496,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen importregels ontvangen"
             });
@@ -4165,13 +4511,18 @@ export default async function handler(
 
 
         if (
-          rows.length > 1000
+          rows.length >
+          1000
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Maximaal 1000 boekingen per import"
             });
@@ -4186,7 +4537,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -4240,9 +4593,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "email is verplicht"
             });
@@ -4261,9 +4618,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(404)
+            .status(
+              404
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Contact niet gevonden"
             });
@@ -4287,9 +4648,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(403)
+            .status(
+              403
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Dit contact is geen makelaar"
             });
@@ -4302,7 +4667,8 @@ export default async function handler(
 
 
         if (
-          firstname !== undefined
+          firstname !==
+          undefined
         ) {
 
           properties.firstname =
@@ -4315,7 +4681,8 @@ export default async function handler(
 
 
         if (
-          lastname !== undefined
+          lastname !==
+          undefined
         ) {
 
           properties.lastname =
@@ -4328,7 +4695,8 @@ export default async function handler(
 
 
         if (
-          phone !== undefined
+          phone !==
+          undefined
         ) {
 
           properties.phone =
@@ -4341,7 +4709,8 @@ export default async function handler(
 
 
         if (
-          diensten !== undefined
+          diensten !==
+          undefined
         ) {
 
           properties.diensten =
@@ -4363,9 +4732,13 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
+            success:
+              true,
+
             contact:
               updated
           });
@@ -4387,9 +4760,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "ticket_id is verplicht"
             });
@@ -4417,7 +4794,8 @@ export default async function handler(
 
 
         const finalAddress =
-          address !== undefined
+          address !==
+          undefined
             ? address
             : p.adres;
 
@@ -4430,13 +4808,15 @@ export default async function handler(
 
 
         const finalStart =
-          start !== undefined
+          start !==
+          undefined
             ? start
             : p.afspraak_start;
 
 
         const finalEnd =
-          end !== undefined
+          end !==
+          undefined
             ? end
             : p.afspraak_einde;
 
@@ -4446,9 +4826,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen fotograaf geselecteerd."
             });
@@ -4461,9 +4845,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Geen adres ingesteld."
             });
@@ -4483,9 +4871,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 timeValidation.error
             });
@@ -4521,7 +4913,9 @@ export default async function handler(
         ) {
 
           return res
-            .status(409)
+            .status(
+              409
+            )
             .json({
 
               success:
@@ -4578,7 +4972,8 @@ export default async function handler(
 
 
         if (
-          diensten !== undefined
+          diensten !==
+          undefined
         ) {
 
           properties.diensten =
@@ -4600,7 +4995,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -4634,9 +5031,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "ticket_id is verplicht"
             });
@@ -4652,9 +5053,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Een reden voor afkeuren is verplicht"
             });
@@ -4684,7 +5089,9 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
 
             success:
@@ -4711,9 +5118,13 @@ export default async function handler(
       ) {
 
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
-            success: false,
+            success:
+              false,
+
             error:
               "ticket_id en contact_id zijn verplicht"
           });
@@ -4748,9 +5159,13 @@ export default async function handler(
       ) {
 
         return res
-          .status(403)
+          .status(
+            403
+          )
           .json({
-            success: false,
+            success:
+              false,
+
             error:
               "Geen toegang tot deze boeking"
           });
@@ -4778,10 +5193,16 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
-            cancelled: true,
+            success:
+              true,
+
+            cancelled:
+              true,
+
             ticket:
               updated
           });
@@ -4810,9 +5231,13 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
+            success:
+              true,
+
             ticket:
               updated
           });
@@ -4837,9 +5262,13 @@ export default async function handler(
         ) {
 
           return res
-            .status(400)
+            .status(
+              400
+            )
             .json({
-              success: false,
+              success:
+                false,
+
               error:
                 "Niet alle verplichte velden zijn ingevuld"
             });
@@ -4874,9 +5303,12 @@ export default async function handler(
                 "",
 
               woning_oppervlakte_m2:
-                woning_oppervlakte_m2 !== undefined &&
-                woning_oppervlakte_m2 !== null &&
-                woning_oppervlakte_m2 !== ""
+                woning_oppervlakte_m2 !==
+                  undefined &&
+                woning_oppervlakte_m2 !==
+                  null &&
+                woning_oppervlakte_m2 !==
+                  ""
                   ? String(
                       woning_oppervlakte_m2
                     )
@@ -4914,9 +5346,13 @@ export default async function handler(
 
 
         return res
-          .status(200)
+          .status(
+            200
+          )
           .json({
-            success: true,
+            success:
+              true,
+
             ticket:
               updated
           });
@@ -4925,9 +5361,13 @@ export default async function handler(
 
 
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
-          success: false,
+          success:
+            false,
+
           error:
             "Onbekende actie"
         });
@@ -4936,9 +5376,13 @@ export default async function handler(
 
 
     return res
-      .status(405)
+      .status(
+        405
+      )
       .json({
-        success: false,
+        success:
+          false,
+
         error:
           "Method not allowed"
       });
@@ -4955,9 +5399,13 @@ export default async function handler(
 
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
-        success: false,
+        success:
+          false,
+
         error:
           error.message
       });
@@ -4965,3 +5413,8 @@ export default async function handler(
   }
 
 }
+
+
+    
+
+
