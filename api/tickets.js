@@ -105,7 +105,6 @@ function normalizeEpoch(
 
 
   return date.getTime();
-
 }
 
 
@@ -136,7 +135,6 @@ function validatePlannerTimes(
       error:
         "Begin- en eindtijd zijn verplicht."
     };
-
   }
 
 
@@ -150,7 +148,6 @@ function validatePlannerTimes(
       error:
         "De eindtijd moet na de begintijd liggen."
     };
-
   }
 
 
@@ -159,7 +156,6 @@ function validatePlannerTimes(
     startMs,
     endMs
   };
-
 }
 
 
@@ -184,7 +180,6 @@ function getAmsterdamDate(
   ) {
 
     return null;
-
   }
 
 
@@ -206,7 +201,6 @@ function getAmsterdamDate(
   ).format(
     date
   );
-
 }
 
 
@@ -227,7 +221,6 @@ function getAmsterdamTime(
   ) {
 
     return null;
-
   }
 
 
@@ -274,12 +267,10 @@ function getAmsterdamTime(
   ) {
 
     return null;
-
   }
 
 
   return `${hour}:${minute}`;
-
 }
 
 
@@ -315,7 +306,58 @@ function getDayKey(
   return DAY_KEYS[
     date.getUTCDay()
   ];
+}
 
+
+function addDateStringDays(
+  dateString,
+  amount
+) {
+
+  const [
+    year,
+    month,
+    day
+  ] =
+    String(
+      dateString
+    )
+      .split("-")
+      .map(
+        Number
+      );
+
+
+  const date =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day + amount,
+        12,
+        0,
+        0
+      )
+    );
+
+
+  return [
+    date.getUTCFullYear(),
+
+    String(
+      date.getUTCMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      date.getUTCDate()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join("-");
 }
 
 
@@ -378,7 +420,6 @@ function getTimeZoneOffsetMs(
         );
 
     }
-
   }
 
 
@@ -397,7 +438,6 @@ function getTimeZoneOffsetMs(
     asUtc -
     date.getTime()
   );
-
 }
 
 
@@ -477,12 +517,10 @@ function createAmsterdamDate(
         naiveUtc -
         correctedOffset
       );
-
   }
 
 
   return candidate;
-
 }
 
 
@@ -508,7 +546,6 @@ function normalizeRepeatDays(
   ) {
 
     return value;
-
   }
 
 
@@ -523,7 +560,6 @@ function normalizeRepeatDays(
     .filter(
       Boolean
     );
-
 }
 
 
@@ -558,12 +594,24 @@ function expandBlocksForDate(
       "none"
     ) {
 
-      result.push(
-        block
-      );
+      const blockDate =
+        getAmsterdamDate(
+          block.start_at
+        );
+
+
+      if (
+        blockDate ===
+        selectedDate
+      ) {
+
+        result.push(
+          block
+        );
+      }
+
 
       continue;
-
     }
 
 
@@ -573,7 +621,6 @@ function expandBlocksForDate(
     ) {
 
       continue;
-
     }
 
 
@@ -590,7 +637,6 @@ function expandBlocksForDate(
     ) {
 
       continue;
-
     }
 
 
@@ -607,7 +653,6 @@ function expandBlocksForDate(
     ) {
 
       continue;
-
     }
 
 
@@ -628,9 +673,7 @@ function expandBlocksForDate(
       ) {
 
         continue;
-
       }
-
     }
 
 
@@ -652,7 +695,6 @@ function expandBlocksForDate(
     ) {
 
       continue;
-
     }
 
 
@@ -673,12 +715,290 @@ function expandBlocksForDate(
         ).toISOString()
 
     });
-
   }
 
 
   return result;
+}
 
+
+// ============================================
+// PLANNER BESCHIKBAARHEID OVERLAY
+//
+// Wordt ALLEEN gebruikt wanneer in de agenda
+// één specifieke fotograaf geselecteerd is.
+//
+// Geen geselecteerde fotograaf:
+// geen extra availability / blocks calls.
+//
+// Per datum sturen we terug:
+// - werkt fotograaf die dag?
+// - werktijden
+// - concrete blokkades van die datum
+// ============================================
+
+async function getPlannerAvailabilityOverlay(
+  photographerId,
+  rangeStart,
+  rangeEnd
+) {
+
+  if (
+    !photographerId
+  ) {
+
+    return null;
+  }
+
+
+  const startMs =
+    normalizeEpoch(
+      rangeStart
+    );
+
+
+  const endMs =
+    normalizeEpoch(
+      rangeEnd
+    );
+
+
+  if (
+    !startMs ||
+    !endMs ||
+    endMs <=
+      startMs
+  ) {
+
+    return null;
+  }
+
+
+  const photographer =
+    await getContact(
+      photographerId,
+      [
+        "firstname",
+        "lastname",
+        "portal_role"
+      ]
+    );
+
+
+  const role =
+    String(
+      photographer.properties
+        ?.portal_role ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    role !==
+    "fotograaf"
+  ) {
+
+    throw new Error(
+      "De geselecteerde contactpersoon is geen fotograaf."
+    );
+  }
+
+
+  const [
+    availability,
+    rawBlocks
+  ] =
+    await Promise.all([
+
+      getAvailability(
+        photographerId
+      ),
+
+      getBlocks(
+        photographerId
+      )
+
+    ]);
+
+
+  const startDate =
+    getAmsterdamDate(
+      startMs
+    );
+
+
+  const endDate =
+    getAmsterdamDate(
+      endMs
+    );
+
+
+  if (
+    !startDate ||
+    !endDate
+  ) {
+
+    return null;
+  }
+
+
+  const days =
+    [];
+
+
+  let dateString =
+    startDate;
+
+
+  while (
+    dateString <
+    endDate
+  ) {
+
+    const dayKey =
+      getDayKey(
+        dateString
+      );
+
+
+    const workingDay =
+      availability
+        ?.working_hours
+        ?.[dayKey] ||
+      null;
+
+
+    const enabled =
+      workingDay
+        ?.enabled ===
+      true;
+
+
+    const expandedBlocks =
+      expandBlocksForDate(
+        rawBlocks,
+        dateString
+      );
+
+
+    const blocks =
+      expandedBlocks
+        .map(
+          block => {
+
+            const start =
+              normalizeEpoch(
+                block.start_at
+              );
+
+
+            const end =
+              normalizeEpoch(
+                block.end_at
+              );
+
+
+            if (
+              !start ||
+              !end
+            ) {
+
+              return null;
+            }
+
+
+            return {
+
+              id:
+                block.id
+                  ? String(
+                      block.id
+                    )
+                  : null,
+
+              start,
+
+              end,
+
+              reason:
+                String(
+                  block.reason ||
+                  ""
+                ).trim()
+
+            };
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    days.push({
+
+      date:
+        dateString,
+
+      day_key:
+        dayKey,
+
+      working: {
+
+        enabled,
+
+        start:
+          enabled
+            ? workingDay.start ||
+              null
+            : null,
+
+        end:
+          enabled
+            ? workingDay.end ||
+              null
+            : null
+
+      },
+
+      blocks
+
+    });
+
+
+    dateString =
+      addDateStringDays(
+        dateString,
+        1
+      );
+  }
+
+
+  return {
+
+    photographer_id:
+      String(
+        photographerId
+      ),
+
+    photographer_name:
+      [
+        photographer.properties
+          ?.firstname,
+
+        photographer.properties
+          ?.lastname
+      ]
+        .filter(
+          Boolean
+        )
+        .join(" ")
+        .trim(),
+
+    days
+
+  };
 }
 
 
@@ -713,7 +1033,6 @@ function ticketToBooking(
   ) {
 
     return null;
-
   }
 
 
@@ -737,7 +1056,6 @@ function ticketToBooking(
       ""
 
   };
-
 }
 
 
@@ -754,7 +1072,6 @@ function hasOverlap(
     end1 >
       start2
   );
-
 }
 
 
@@ -773,7 +1090,6 @@ function parseHomeLocation(
       longitude:
         null
     };
-
   }
 
 
@@ -806,7 +1122,6 @@ function parseHomeLocation(
       longitude:
         null
     };
-
   }
 
 
@@ -814,7 +1129,6 @@ function parseHomeLocation(
     latitude,
     longitude
   };
-
 }
 
 
@@ -874,7 +1188,6 @@ async function validatePlannerBooking({
       error:
         "De geselecteerde contactpersoon is geen fotograaf."
     };
-
   }
 
 
@@ -940,7 +1253,6 @@ async function validatePlannerBooking({
       error:
         "De fotograaf werkt niet op deze dag."
     };
-
   }
 
 
@@ -956,7 +1268,6 @@ async function validatePlannerBooking({
       error:
         "De werktijden van de fotograaf zijn niet volledig ingesteld."
     };
-
   }
 
 
@@ -988,7 +1299,6 @@ async function validatePlannerBooking({
       error:
         `De aangepaste afspraak valt buiten de werktijden (${workingDay.start} - ${workingDay.end}).`
     };
-
   }
 
 
@@ -1034,9 +1344,7 @@ async function validatePlannerBooking({
             ? `De fotograaf heeft een blokkade: ${block.reason}`
             : "De fotograaf heeft op dit tijdstip een blokkade."
       };
-
     }
-
   }
 
 
@@ -1098,9 +1406,7 @@ async function validatePlannerBooking({
         error:
           "De aangepaste tijd overlapt met een andere boeking."
       };
-
     }
-
   }
 
 
@@ -1130,9 +1436,7 @@ async function validatePlannerBooking({
 
         previousBooking =
           booking;
-
       }
-
     }
 
 
@@ -1149,11 +1453,8 @@ async function validatePlannerBooking({
 
         nextBooking =
           booking;
-
       }
-
     }
-
   }
 
 
@@ -1168,7 +1469,6 @@ async function validatePlannerBooking({
       error:
         "De boeking heeft geen adres."
     };
-
   }
 
 
@@ -1201,7 +1501,6 @@ async function validatePlannerBooking({
         error:
           "Het adres van de vorige afspraak ontbreekt."
       };
-
     }
 
 
@@ -1244,7 +1543,6 @@ async function validatePlannerBooking({
         error:
           `Onvoldoende reistijd vanaf de vorige afspraak. Minimaal ${incomingTravel.travel_minutes} minuten reistijd nodig.`
       };
-
     }
 
   } else {
@@ -1263,7 +1561,6 @@ async function validatePlannerBooking({
         error:
           "De thuislocatie van de fotograaf ontbreekt."
       };
-
     }
 
 
@@ -1274,7 +1571,6 @@ async function validatePlannerBooking({
         destination.latitude,
         destination.longitude
       );
-
   }
 
 
@@ -1290,7 +1586,6 @@ async function validatePlannerBooking({
       error:
         `De reistijd naar deze afspraak is ${incomingTravel.travel_minutes} minuten. De fotograaf heeft maximaal ${maxTravel} minuten ingesteld.`
     };
-
   }
 
 
@@ -1313,7 +1608,6 @@ async function validatePlannerBooking({
         error:
           "Het adres van de volgende afspraak ontbreekt."
       };
-
     }
 
 
@@ -1352,9 +1646,7 @@ async function validatePlannerBooking({
         error:
           `Onvoldoende reistijd naar de volgende afspraak. Er is ${travelToNext.travel_minutes} minuten reistijd nodig.`
       };
-
     }
-
   }
 
 
@@ -1391,7 +1683,6 @@ async function validatePlannerBooking({
     }
 
   };
-
 }
 
 
@@ -1434,7 +1725,6 @@ function normalizePlannerServices(
       .filter(
         Boolean
       );
-
   }
 
 
@@ -1449,7 +1739,6 @@ function normalizePlannerServices(
     .filter(
       Boolean
     );
-
 }
 
 
@@ -1480,7 +1769,6 @@ function getPlannerStatus(
         "In beoordeling"
 
     };
-
   }
 
 
@@ -1500,7 +1788,6 @@ function getPlannerStatus(
         "Goedgekeurd"
 
     };
-
   }
 
 
@@ -1520,12 +1807,10 @@ function getPlannerStatus(
         "Afgekeurd"
 
     };
-
   }
 
 
   return null;
-
 }
 
 
@@ -1584,14 +1869,11 @@ function getAssociatedContactIdByType(
       return String(
         contactId
       );
-
     }
-
   }
 
 
   return null;
-
 }
 
 
@@ -1629,7 +1911,6 @@ function getContactDisplayName(
     properties.email ||
     ""
   );
-
 }
 
 
@@ -1709,9 +1990,7 @@ async function getPlannerContact(
 
 
     return null;
-
   }
-
 }
 
 
@@ -1744,12 +2023,10 @@ function chunkArray(
           size
       )
     );
-
   }
 
 
   return chunks;
-
 }
 
 
@@ -1791,7 +2068,6 @@ async function loadPlannerAssociations(
   ) {
 
     return associationsByTicket;
-
   }
 
 
@@ -1842,7 +2118,6 @@ async function loadPlannerAssociations(
       ) {
 
         continue;
-
       }
 
 
@@ -1859,9 +2134,7 @@ async function loadPlannerAssociations(
             associations
         }
       );
-
     }
-
   }
 
 
@@ -1883,14 +2156,11 @@ async function loadPlannerAssociations(
             []
         }
       );
-
     }
-
   }
 
 
   return associationsByTicket;
-
 }
 
 
@@ -1908,7 +2178,6 @@ function plannerContactFromRecord(
   ) {
 
     return null;
-
   }
 
 
@@ -1950,7 +2219,6 @@ function plannerContactFromRecord(
       ""
 
   };
-
 }
 
 
@@ -1992,7 +2260,6 @@ async function loadPlannerContacts(
   ) {
 
     return contactsById;
-
   }
 
 
@@ -2050,7 +2317,6 @@ async function loadPlannerContacts(
       ) {
 
         continue;
-
       }
 
 
@@ -2060,14 +2326,11 @@ async function loadPlannerContacts(
         ),
         normalizedContact
       );
-
     }
-
   }
 
 
   return contactsById;
-
 }
 
 
@@ -2093,7 +2356,6 @@ async function enrichPlannerRecords(
         new Map()
 
     };
-
   }
 
 
@@ -2160,7 +2422,6 @@ async function enrichPlannerRecords(
           makelaarId
         )
       );
-
     }
 
 
@@ -2171,9 +2432,7 @@ async function enrichPlannerRecords(
       contactIds.add(
         photographerId
       );
-
     }
-
   }
 
 
@@ -2189,7 +2448,6 @@ async function enrichPlannerRecords(
     associationsByTicket,
     contactsById
   };
-
 }
 
 // ============================================
@@ -2312,7 +2570,6 @@ async function searchPlannerBookingRecords() {
 
 
   return results;
-
 }
 
 
@@ -2543,7 +2800,6 @@ async function getPlannerBookings() {
 
       }
     );
-
 }
 
 
@@ -2576,7 +2832,6 @@ function getPlannerAgendaStatus(
       label:
         "In beoordeling"
     };
-
   }
 
 
@@ -2594,7 +2849,6 @@ function getPlannerAgendaStatus(
       label:
         "Goedgekeurd"
     };
-
   }
 
 
@@ -2612,7 +2866,6 @@ function getPlannerAgendaStatus(
       label:
         "Opnamedag"
     };
-
   }
 
 
@@ -2630,7 +2883,6 @@ function getPlannerAgendaStatus(
       label:
         "Pakket in behandeling"
     };
-
   }
 
 
@@ -2648,12 +2900,10 @@ function getPlannerAgendaStatus(
       label:
         "Afgerond"
     };
-
   }
 
 
   return null;
-
 }
 
 
@@ -2690,7 +2940,6 @@ function normalizeAgendaRange(
       endMs:
         null
     };
-
   }
 
 
@@ -2702,7 +2951,6 @@ function normalizeAgendaRange(
     throw new Error(
       "Voor de agenda zijn zowel range_start als range_end verplicht."
     );
-
   }
 
 
@@ -2714,7 +2962,6 @@ function normalizeAgendaRange(
     throw new Error(
       "Agenda range_end moet na range_start liggen."
     );
-
   }
 
 
@@ -2722,7 +2969,6 @@ function normalizeAgendaRange(
     startMs,
     endMs
   };
-
 }
 
 
@@ -2826,7 +3072,6 @@ async function searchPlannerAgendaRecords(
           )
       }
     );
-
   }
 
 
@@ -2848,7 +3093,6 @@ async function searchPlannerAgendaRecords(
           )
       }
     );
-
   }
 
 
@@ -2920,7 +3164,6 @@ async function searchPlannerAgendaRecords(
 
 
   return results;
-
 }
 
 
@@ -3188,7 +3431,6 @@ async function getPlannerAgendaBookings(
         a.afspraak_start -
         b.afspraak_start
     );
-
 }
 
 
@@ -3222,7 +3464,6 @@ function getUniquePlannerAgendaContacts(
     ) {
 
       continue;
-
     }
 
 
@@ -3261,9 +3502,7 @@ function getUniquePlannerAgendaContacts(
             ""
         }
       );
-
     }
-
   }
 
 
@@ -3285,7 +3524,6 @@ function getUniquePlannerAgendaContacts(
           "nl"
         )
     );
-
 }
 
 
@@ -3947,13 +4185,42 @@ export default async function handler(
         }
 
 
-        const bookings =
-          await getPlannerAgendaBookings(
-            range_start ||
-              null,
-            range_end ||
-              null
-          );
+        // =====================================
+        // BOEKINGEN + EVENTUELE AVAILABILITY
+        //
+        // Zonder photographer_id:
+        // alleen boekingen laden.
+        //
+        // Met photographer_id:
+        // parallel ook werktijden / blocks laden.
+        // =====================================
+
+        const [
+          bookings,
+          availabilityOverlay
+        ] =
+          await Promise.all([
+
+            getPlannerAgendaBookings(
+              range_start ||
+                null,
+              range_end ||
+                null
+            ),
+
+            photographer_id
+              ? getPlannerAvailabilityOverlay(
+                  photographer_id,
+                  range_start ||
+                    null,
+                  range_end ||
+                    null
+                )
+              : Promise.resolve(
+                  null
+                )
+
+          ]);
 
 
         const photographers =
@@ -4017,6 +4284,16 @@ export default async function handler(
                 null
 
             },
+
+            selected_photographer_id:
+              photographer_id
+                ? String(
+                    photographer_id
+                  )
+                : null,
+
+            availability_overlay:
+              availabilityOverlay,
 
             bookings,
 
@@ -4206,6 +4483,7 @@ export default async function handler(
 
     }
 
+
       // =========================================
     // POST
     // =========================================
@@ -4269,7 +4547,6 @@ export default async function handler(
               error:
                 "contact_id is verplicht"
             });
-
         }
 
 
@@ -4312,7 +4589,6 @@ export default async function handler(
               error:
                 "Geen toegang tot Planner"
             });
-
         }
 
 
@@ -4339,7 +4615,6 @@ export default async function handler(
               error:
                 "Geen importregels ontvangen"
             });
-
         }
 
 
@@ -4359,7 +4634,6 @@ export default async function handler(
               error:
                 "Maximaal 1000 boekingen per import"
             });
-
         }
 
 
@@ -4408,7 +4682,6 @@ export default async function handler(
             ...preview
 
           });
-
       }
 
 
@@ -4436,7 +4709,6 @@ export default async function handler(
               error:
                 "contact_id is verplicht"
             });
-
         }
 
 
@@ -4479,7 +4751,6 @@ export default async function handler(
               error:
                 "Geen toegang tot Planner"
             });
-
         }
 
 
@@ -4506,7 +4777,6 @@ export default async function handler(
               error:
                 "Geen importregels ontvangen"
             });
-
         }
 
 
@@ -4526,7 +4796,6 @@ export default async function handler(
               error:
                 "Maximaal 1000 boekingen per import"
             });
-
         }
 
 
@@ -4575,7 +4844,6 @@ export default async function handler(
             ...result
 
           });
-
       }
 
 
@@ -4603,7 +4871,6 @@ export default async function handler(
               error:
                 "email is verplicht"
             });
-
         }
 
 
@@ -4628,7 +4895,6 @@ export default async function handler(
               error:
                 "Contact niet gevonden"
             });
-
         }
 
 
@@ -4658,7 +4924,6 @@ export default async function handler(
               error:
                 "Dit contact is geen makelaar"
             });
-
         }
 
 
@@ -4676,7 +4941,6 @@ export default async function handler(
               firstname ||
               ""
             ).trim();
-
         }
 
 
@@ -4690,7 +4954,6 @@ export default async function handler(
               lastname ||
               ""
             ).trim();
-
         }
 
 
@@ -4704,7 +4967,6 @@ export default async function handler(
               phone ||
               ""
             ).trim();
-
         }
 
 
@@ -4720,7 +4982,6 @@ export default async function handler(
               ? diensten.join(";")
               : diensten ||
                 "";
-
         }
 
 
@@ -4742,7 +5003,6 @@ export default async function handler(
             contact:
               updated
           });
-
       }
 
 
@@ -4776,7 +5036,6 @@ export default async function handler(
               error:
                 "contact_id is verplicht"
             });
-
         }
 
 
@@ -4795,7 +5054,6 @@ export default async function handler(
               error:
                 "ticket_id is verplicht"
             });
-
         }
 
 
@@ -4838,7 +5096,6 @@ export default async function handler(
               error:
                 "Geen toegang tot Planner"
             });
-
         }
 
 
@@ -4903,7 +5160,6 @@ export default async function handler(
               error:
                 "Deze boeking heeft geen fotograaf."
             });
-
         }
 
 
@@ -4937,7 +5193,6 @@ export default async function handler(
               error:
                 "De huidige afspraak heeft geen geldige begin- en eindtijd."
             });
-
         }
 
 
@@ -4963,7 +5218,6 @@ export default async function handler(
               error:
                 timeValidation.error
             });
-
         }
 
 
@@ -4993,7 +5247,6 @@ export default async function handler(
               error:
                 "Bij verslepen moet de duur van de boeking gelijk blijven."
             });
-
         }
 
 
@@ -5020,7 +5273,6 @@ export default async function handler(
                 true
 
             });
-
         }
 
 
@@ -5047,7 +5299,6 @@ export default async function handler(
               error:
                 "De boeking heeft geen adres."
             });
-
         }
 
 
@@ -5091,7 +5342,6 @@ export default async function handler(
                 plannerValidation.error
 
             });
-
         }
 
 
@@ -5145,7 +5395,6 @@ export default async function handler(
               updated
 
           });
-
       }
 
 
@@ -5173,7 +5422,6 @@ export default async function handler(
               error:
                 "ticket_id is verplicht"
             });
-
         }
 
 
@@ -5239,7 +5487,6 @@ export default async function handler(
               error:
                 "Geen fotograaf geselecteerd."
             });
-
         }
 
 
@@ -5258,7 +5505,6 @@ export default async function handler(
               error:
                 "Geen adres ingesteld."
             });
-
         }
 
 
@@ -5284,7 +5530,6 @@ export default async function handler(
               error:
                 timeValidation.error
             });
-
         }
 
 
@@ -5331,7 +5576,6 @@ export default async function handler(
                 plannerValidation.error
 
             });
-
         }
 
 
@@ -5386,7 +5630,6 @@ export default async function handler(
               ? diensten.join(";")
               : diensten ||
                 "";
-
         }
 
 
@@ -5416,7 +5659,6 @@ export default async function handler(
               updated
 
           });
-
       }
 
 
@@ -5444,7 +5686,6 @@ export default async function handler(
               error:
                 "ticket_id is verplicht"
             });
-
         }
 
 
@@ -5466,7 +5707,6 @@ export default async function handler(
               error:
                 "Een reden voor afkeuren is verplicht"
             });
-
         }
 
 
@@ -5507,7 +5747,6 @@ export default async function handler(
               updated
 
           });
-
       }
 
 
@@ -5531,7 +5770,6 @@ export default async function handler(
             error:
               "ticket_id en contact_id zijn verplicht"
           });
-
       }
 
 
@@ -5572,7 +5810,6 @@ export default async function handler(
             error:
               "Geen toegang tot deze boeking"
           });
-
       }
 
 
@@ -5609,7 +5846,6 @@ export default async function handler(
             ticket:
               updated
           });
-
       }
 
 
@@ -5644,7 +5880,6 @@ export default async function handler(
             ticket:
               updated
           });
-
       }
 
 
@@ -5675,7 +5910,6 @@ export default async function handler(
               error:
                 "Niet alle verplichte velden zijn ingevuld"
             });
-
         }
 
 
@@ -5759,7 +5993,6 @@ export default async function handler(
             ticket:
               updated
           });
-
       }
 
 
@@ -5774,7 +6007,6 @@ export default async function handler(
           error:
             "Onbekende actie"
         });
-
     }
 
 
@@ -5812,7 +6044,5 @@ export default async function handler(
         error:
           error.message
       });
-
   }
-
 }
