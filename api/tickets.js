@@ -32,7 +32,8 @@ import {
 
 import {
   geocodeAddress,
-  getTravelInfo
+  getTravelInfo,
+  getTravelMatrix
 } from "../lib/googleRoutes.js";
 
 import {
@@ -83,7 +84,6 @@ function normalizeEpoch(
   ) {
 
     return numeric;
-
   }
 
 
@@ -100,7 +100,6 @@ function normalizeEpoch(
   ) {
 
     return null;
-
   }
 
 
@@ -418,7 +417,6 @@ function getTimeZoneOffsetMs(
         Number(
           part.value
         );
-
     }
   }
 
@@ -535,6 +533,7 @@ function normalizeRepeatDays(
   if (
     !value
   ) {
+
     return [];
   }
 
@@ -723,18 +722,78 @@ function expandBlocksForDate(
 
 
 // ============================================
+// HOME LOCATION
+// ============================================
+
+function parseHomeLocation(
+  value
+) {
+
+  if (
+    !value
+  ) {
+
+    return {
+      latitude:
+        null,
+
+      longitude:
+        null
+    };
+  }
+
+
+  const [
+    latitude,
+    longitude
+  ] =
+    String(
+      value
+    )
+      .split(",")
+      .map(
+        Number
+      );
+
+
+  if (
+    !Number.isFinite(
+      latitude
+    ) ||
+    !Number.isFinite(
+      longitude
+    )
+  ) {
+
+    return {
+      latitude:
+        null,
+
+      longitude:
+        null
+    };
+  }
+
+
+  return {
+    latitude,
+    longitude
+  };
+}
+
+
+// ============================================
 // PLANNER BESCHIKBAARHEID OVERLAY
 //
-// Wordt ALLEEN gebruikt wanneer in de agenda
-// één specifieke fotograaf geselecteerd is.
+// Alleen voor één geselecteerde / gezochte
+// fotograaf.
 //
-// Geen geselecteerde fotograaf:
-// geen extra availability / blocks calls.
+// We sturen nu óók mee:
+// - thuislocatie
+// - max reistijd
 //
-// Per datum sturen we terug:
-// - werkt fotograaf die dag?
-// - werktijden
-// - concrete blokkades van die datum
+// Dat gebruiken we straks voor directe
+// client-side drag/drop validatie.
 // ============================================
 
 async function getPlannerAvailabilityOverlay(
@@ -780,7 +839,9 @@ async function getPlannerAvailabilityOverlay(
       [
         "firstname",
         "lastname",
-        "portal_role"
+        "portal_role",
+        "thuislocatie",
+        "max_reistijd_minuten"
       ]
     );
 
@@ -804,6 +865,21 @@ async function getPlannerAvailabilityOverlay(
       "De geselecteerde contactpersoon is geen fotograaf."
     );
   }
+
+
+  const home =
+    parseHomeLocation(
+      photographer.properties
+        ?.thuislocatie
+    );
+
+
+  const maxTravelMinutes =
+    Number(
+      photographer.properties
+        ?.max_reistijd_minuten
+    ) ||
+    30;
 
 
   const [
@@ -996,6 +1072,19 @@ async function getPlannerAvailabilityOverlay(
         .join(" ")
         .trim(),
 
+    max_travel_minutes:
+      maxTravelMinutes,
+
+    home: {
+
+      latitude:
+        home.latitude,
+
+      longitude:
+        home.longitude
+
+    },
+
     days
 
   };
@@ -1039,7 +1128,9 @@ function ticketToBooking(
   return {
 
     id:
-      ticket.id,
+      String(
+        ticket.id
+      ),
 
     start:
       new Date(
@@ -1075,65 +1166,445 @@ function hasOverlap(
 }
 
 
-function parseHomeLocation(
-  value
+// ============================================
+// ACTIEVE FOTOGRAAFBOEKINGEN BINNEN RANGE
+//
+// Deze data gebruiken we voor de travel matrix.
+// Dit sluit zoveel mogelijk aan bij dezelfde
+// set die validatePlannerBooking() gebruikt.
+// ============================================
+
+async function getPlannerTravelBookings(
+  photographerId,
+  rangeStart,
+  rangeEnd
 ) {
 
+  const startMs =
+    normalizeEpoch(
+      rangeStart
+    );
+
+
+  const endMs =
+    normalizeEpoch(
+      rangeEnd
+    );
+
+
   if (
-    !value
+    !startMs ||
+    !endMs ||
+    endMs <=
+      startMs
   ) {
 
-    return {
-      latitude:
-        null,
-
-      longitude:
-        null
-    };
+    return [];
   }
 
 
-  const [
-    latitude,
-    longitude
-  ] =
-    String(
-      value
+  const response =
+    await getBookings(
+      photographerId
+    );
+
+
+  return (
+    response.results ||
+    []
+  )
+    .map(
+      ticketToBooking
     )
-      .split(",")
-      .map(
-        Number
-      );
+    .filter(
+      Boolean
+    )
+    .filter(
+      booking => {
+
+        const bookingStart =
+          booking.start.getTime();
+
+
+        return (
+          bookingStart >=
+            startMs &&
+          bookingStart <
+            endMs
+        );
+      }
+    )
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        a.start.getTime() -
+        b.start.getTime()
+    );
+}
+
+
+// ============================================
+// TRAVEL OVERLAY / CACHE
+//
+// Doel:
+// wanneer Lucas geselecteerd is, berekenen
+// we bij het laden van de agenda één matrix.
+//
+// De browser weet daarna DIRECT:
+// - reistijd home -> boeking
+// - reistijd boeking -> boeking
+//
+// Bij drag/drop hoeft dus niet eerst op Google
+// Routes gewacht te worden.
+//
+// keys:
+// "home"
+// "booking:<ticketId>"
+// ============================================
+
+async function getPlannerTravelOverlay(
+  photographerId,
+  rangeStart,
+  rangeEnd,
+  availabilityOverlay
+) {
+
+  if (
+    !photographerId ||
+    !availabilityOverlay
+  ) {
+
+    return null;
+  }
+
+
+  const bookings =
+    await getPlannerTravelBookings(
+      photographerId,
+      rangeStart,
+      rangeEnd
+    );
+
+
+  const nodes =
+    [];
+
+
+  // =========================================
+  // HOME NODE
+  // =========================================
+
+  const homeLat =
+    availabilityOverlay
+      .home
+      ?.latitude;
+
+
+  const homeLng =
+    availabilityOverlay
+      .home
+      ?.longitude;
 
 
   if (
-    !Number.isFinite(
-      latitude
-    ) ||
-    !Number.isFinite(
-      longitude
+    Number.isFinite(
+      homeLat
+    ) &&
+    Number.isFinite(
+      homeLng
     )
   ) {
 
-    return {
+    nodes.push({
+
+      key:
+        "home",
+
+      type:
+        "home",
+
       latitude:
-        null,
+        homeLat,
 
       longitude:
-        null
-    };
+        homeLng
+
+    });
+  }
+
+
+  // =========================================
+  // BOEKINGEN GEOCODEN
+  // =========================================
+
+  const uniqueAddressMap =
+    new Map();
+
+
+  for (
+    const booking of
+      bookings
+  ) {
+
+    const address =
+      String(
+        booking.adres ||
+        ""
+      ).trim();
+
+
+    if (
+      !address
+    ) {
+
+      continue;
+    }
+
+
+    const normalizedAddress =
+      address
+        .toLowerCase()
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim();
+
+
+    if (
+      !uniqueAddressMap.has(
+        normalizedAddress
+      )
+    ) {
+
+      uniqueAddressMap.set(
+        normalizedAddress,
+        {
+          address,
+          bookings:
+            []
+        }
+      );
+    }
+
+
+    uniqueAddressMap
+      .get(
+        normalizedAddress
+      )
+      .bookings
+      .push(
+        booking
+      );
+  }
+
+
+  const geocodedAddresses =
+    new Map();
+
+
+  await Promise.all(
+    Array.from(
+      uniqueAddressMap.entries()
+    ).map(
+      async (
+        [
+          normalizedAddress,
+          item
+        ]
+      ) => {
+
+        try {
+
+          const location =
+            await geocodeAddress(
+              item.address
+            );
+
+
+          geocodedAddresses.set(
+            normalizedAddress,
+            location
+          );
+
+        } catch (
+          error
+        ) {
+
+          console.error(
+            `Travel overlay: adres kon niet worden geocodeerd: ${item.address}`,
+            error
+          );
+        }
+      }
+    )
+  );
+
+
+  for (
+    const booking of
+      bookings
+  ) {
+
+    const address =
+      String(
+        booking.adres ||
+        ""
+      ).trim();
+
+
+    if (
+      !address
+    ) {
+
+      continue;
+    }
+
+
+    const normalizedAddress =
+      address
+        .toLowerCase()
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim();
+
+
+    const location =
+      geocodedAddresses.get(
+        normalizedAddress
+      );
+
+
+    if (
+      !location
+    ) {
+
+      continue;
+    }
+
+
+    nodes.push({
+
+      key:
+        `booking:${booking.id}`,
+
+      type:
+        "booking",
+
+      booking_id:
+        String(
+          booking.id
+        ),
+
+      address,
+
+      start:
+        booking.start.getTime(),
+
+      end:
+        booking.end.getTime(),
+
+      latitude:
+        location.latitude,
+
+      longitude:
+        location.longitude
+
+    });
+  }
+
+
+  // =========================================
+  // ALS ER MINDER DAN 2 NODES ZIJN IS ER
+  // GEEN ROUTEMATRIX NODIG.
+  // =========================================
+
+  let matrix =
+    {};
+
+
+  if (
+    nodes.length >=
+    2
+  ) {
+
+    matrix =
+      await getTravelMatrix(
+        nodes
+      );
   }
 
 
   return {
-    latitude,
-    longitude
+
+    photographer_id:
+      String(
+        photographerId
+      ),
+
+    max_travel_minutes:
+      availabilityOverlay
+        .max_travel_minutes ||
+      30,
+
+    nodes:
+      nodes.map(
+        node => {
+
+          if (
+            node.type ===
+            "home"
+          ) {
+
+            return {
+              key:
+                node.key,
+
+              type:
+                node.type
+            };
+          }
+
+
+          return {
+
+            key:
+              node.key,
+
+            type:
+              node.type,
+
+            booking_id:
+              node.booking_id,
+
+            address:
+              node.address,
+
+            start:
+              node.start,
+
+            end:
+              node.end
+
+          };
+        }
+      ),
+
+    matrix
+
   };
 }
 
 
 // ============================================
 // VOLLEDIGE PLANNER VALIDATIE
+//
+// Dit blijft de DEFINITIEVE server-side check.
+// De nieuwe frontend-check vervangt dit dus niet.
 // ============================================
 
 async function validatePlannerBooking({
@@ -1705,6 +2176,7 @@ function normalizePlannerServices(
   if (
     !value
   ) {
+
     return [];
   }
 
@@ -1851,6 +2323,7 @@ function getAssociatedContactIdByType(
     if (
       !matches
     ) {
+
       continue;
     }
 
@@ -1884,6 +2357,7 @@ function getContactDisplayName(
   if (
     !contact
   ) {
+
     return "";
   }
 
@@ -1921,6 +2395,7 @@ async function getPlannerContact(
   if (
     !contactId
   ) {
+
     return null;
   }
 
@@ -2538,7 +3013,6 @@ async function searchPlannerBookingRecords() {
 
       body.after =
         after;
-
     }
 
 
@@ -2613,7 +3087,6 @@ async function getPlannerBookings() {
         ) {
 
           return null;
-
         }
 
 
@@ -2797,7 +3270,6 @@ async function getPlannerBookings() {
           aStart -
           bStart
         );
-
       }
     );
 }
@@ -3132,7 +3604,6 @@ async function searchPlannerAgendaRecords(
 
       body.after =
         after;
-
     }
 
 
@@ -3206,7 +3677,6 @@ async function getPlannerAgendaBookings(
         ) {
 
           return false;
-
         }
 
 
@@ -3228,7 +3698,6 @@ async function getPlannerAgendaBookings(
           appointmentStart &&
           appointmentEnd
         );
-
       }
     );
 
@@ -3417,7 +3886,6 @@ async function getPlannerAgendaBookings(
             ""
 
         };
-
       }
     );
 
@@ -3542,6 +4010,7 @@ export default async function handler(
       res
     )
   ) {
+
     return;
   }
 
@@ -3596,7 +4065,6 @@ export default async function handler(
               result.results ||
               []
           });
-
       }
 
 
@@ -3623,7 +4091,6 @@ export default async function handler(
 
             services
           });
-
       }
 
 
@@ -3651,7 +4118,6 @@ export default async function handler(
               error:
                 "email is verplicht"
             });
-
         }
 
 
@@ -3676,7 +4142,6 @@ export default async function handler(
               error:
                 "Contact niet gevonden"
             });
-
         }
 
 
@@ -3707,7 +4172,6 @@ export default async function handler(
               error:
                 "Dit contact is geen makelaar"
             });
-
         }
 
 
@@ -3729,7 +4193,6 @@ export default async function handler(
               ""
 
           });
-
       }
 
 
@@ -3757,7 +4220,6 @@ export default async function handler(
               error:
                 "email is verplicht"
             });
-
         }
 
 
@@ -3782,7 +4244,6 @@ export default async function handler(
               error:
                 "Contact niet gevonden"
             });
-
         }
 
 
@@ -3817,7 +4278,6 @@ export default async function handler(
               error:
                 "Dit contact is geen makelaar"
             });
-
         }
 
 
@@ -3863,7 +4323,6 @@ export default async function handler(
             }
 
           });
-
       }
 
 
@@ -3891,7 +4350,6 @@ export default async function handler(
               error:
                 "photographer_id is verplicht"
             });
-
         }
 
 
@@ -3913,7 +4371,6 @@ export default async function handler(
               jobs.results ||
               []
           });
-
       }
 
 
@@ -3941,7 +4398,6 @@ export default async function handler(
               error:
                 "contact_id is verplicht"
             });
-
         }
 
 
@@ -3961,7 +4417,6 @@ export default async function handler(
 
             orders
           });
-
       }
 
 
@@ -3989,7 +4444,6 @@ export default async function handler(
               error:
                 "contact_id is verplicht"
             });
-
         }
 
 
@@ -4032,7 +4486,6 @@ export default async function handler(
               error:
                 "Geen toegang tot Planner"
             });
-
         }
 
 
@@ -4110,7 +4563,6 @@ export default async function handler(
             bookings
 
           });
-
       }
 
 
@@ -4138,7 +4590,6 @@ export default async function handler(
               error:
                 "contact_id is verplicht"
             });
-
         }
 
 
@@ -4181,18 +4632,13 @@ export default async function handler(
               error:
                 "Geen toegang tot Planner"
             });
-
         }
 
 
         // =====================================
-        // BOEKINGEN + EVENTUELE AVAILABILITY
+        // STAP 1
         //
-        // Zonder photographer_id:
-        // alleen boekingen laden.
-        //
-        // Met photographer_id:
-        // parallel ook werktijden / blocks laden.
+        // Boekingen en availability parallel.
         // =====================================
 
         const [
@@ -4221,6 +4667,64 @@ export default async function handler(
                 )
 
           ]);
+
+
+        // =====================================
+        // STAP 2
+        //
+        // Alleen bij één fotograaf bouwen we
+        // de travel-cache.
+        //
+        // De gewone agenda heeft dus geen
+        // Google Routes overhead.
+        // =====================================
+
+        let travelOverlay =
+          null;
+
+
+        if (
+          photographer_id &&
+          availabilityOverlay
+        ) {
+
+          try {
+
+            travelOverlay =
+              await getPlannerTravelOverlay(
+                photographer_id,
+                range_start ||
+                  null,
+                range_end ||
+                  null,
+                availabilityOverlay
+              );
+
+          } catch (
+            error
+          ) {
+
+            /*
+             * Travel-cache is een optimalisatie.
+             *
+             * Als Google Routes hier fout gaat,
+             * mag de hele agenda NIET stukgaan.
+             *
+             * De definitieve backend-validatie
+             * bij planner-reschedule blijft
+             * namelijk gewoon actief.
+             */
+
+            console.error(
+              "PLANNER TRAVEL OVERLAY ERROR:",
+              error
+            );
+
+
+            travelOverlay =
+              null;
+          }
+        }
 
 
         const photographers =
@@ -4295,6 +4799,9 @@ export default async function handler(
             availability_overlay:
               availabilityOverlay,
 
+            travel_overlay:
+              travelOverlay,
+
             bookings,
 
             photographers,
@@ -4302,7 +4809,6 @@ export default async function handler(
             makelaars
 
           });
-
       }
 
 
@@ -4330,7 +4836,6 @@ export default async function handler(
               error:
                 "ticket_id is verplicht"
             });
-
         }
 
 
@@ -4465,7 +4970,6 @@ export default async function handler(
             }
 
           });
-
       }
 
 
@@ -4480,8 +4984,8 @@ export default async function handler(
           error:
             "Onbekende actie"
         });
-
     }
+
 
 
       // =========================================
@@ -5009,11 +5513,18 @@ export default async function handler(
       // =======================================
       // PLANNER BOEKING VERSLEPEN
       //
-      // V1:
-      // - zelfde fotograaf
-      // - zelfde duur
-      // - andere dag/tijd toegestaan
-      // - volledige planner-validatie
+      // Backend blijft definitief controleren:
+      //
+      // - planner toegang
+      // - fotograaf
+      // - duur
+      // - werktijden
+      // - blokkades
+      // - overlap
+      // - reistijd
+      //
+      // De frontend gaat dezelfde controles
+      // waar mogelijk AL VOOR DE DROP uitvoeren.
       // =======================================
 
       if (
@@ -6009,6 +6520,10 @@ export default async function handler(
         });
     }
 
+
+    // =========================================
+    // METHOD NOT ALLOWED
+    // =========================================
 
     return res
       .status(
